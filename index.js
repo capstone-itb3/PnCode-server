@@ -6,6 +6,9 @@ const { Server } = require('socket.io');
 const server = http.createServer(app);
 const io = new Server(server);
 
+const { client } = require('./database');
+
+
 const userSocketMap = {};
 
 const getAllConnectedUsers = (room_id) => {
