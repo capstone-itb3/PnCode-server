@@ -15,6 +15,25 @@ const userSchema = new mongoose.Schema({
         required: true, 
         minlength: 8
     },
+
+    rooms: {
+        type: [String],
+        default: [],
+        required: false
+    },
+
+    classes: {
+        type: [String],
+        default: [],
+        required: false
+    },
+
+    teams: {
+        type: [String],
+        default: [],
+        required: false
+    },
+    
 }, { timestamps: true, collection: 'users' });
 
 const userModel = mongoose.model('users', userSchema);

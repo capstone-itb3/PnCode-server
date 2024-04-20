@@ -11,9 +11,11 @@ const cors = require('cors');
 const multer = require('multer');
 
 const { uri }  = require('./database');
-const userModel = require('./models/users.model');
 const jwt = require('jsonwebtoken');
 //const records = require('./routes/record');
+
+const userModel = require('./models/users.model');
+const roomModel = require('./models/rooms.model');
 
 app.use(cors());
 //app.use('user', records);
@@ -35,16 +37,19 @@ app.post('/api/register', async (req, res) => {
         const user = await userModel.create({
             username: req.body.username,
             email: req.body.email,
-            password: req.body.password
+            password: req.body.password,
+            rooms: [],
+            classes: [],
+            teams: []
         });
 
         const token = jwt.sign({
             username: user.username,
             email: user.email,
-            password: user.password
+            password: user.password,
 
-        }, 'secret123');
-
+        }, 'secret123capstoneprojectdonothackimportant0987654321');
+        
         res.json({ status: 'ok', user: token});    
     } catch (e) {
         res.status(500).json({ status: false });
@@ -54,23 +59,25 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
     const user = await userModel.findOne({
         username: req.body.username,
-        password: req.body.password
-    });
+        password: req.body.password,
+});
     
     if (user) {
         const token = jwt.sign({
             username: user.username,
             email: user.email,
-            password: user.password
-
-        }, 'secret123');
+            password: user.password,
+            rooms: user.rooms,
+            teams: user.teams,
+            classes: user.classes
+    
+        }, 'secret123capstoneprojectdonothackimportant0987654321');
 
         return res.json({ status: 'ok', user: token });
     } else {
         return res.json({ status: 'error', user: false });
     }
 });
-
 
 
 
