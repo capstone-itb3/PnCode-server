@@ -79,29 +79,47 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+app.post('/api/display-rooms', async (req, res) => {
+    const room = await roomModel.findOne({
+        room_id: req.body.room_id
+    });
+    
+    if (room) {
+        return res.json({ 
+            room_id: room.room_id,
+            room_name: room.room_name,
+            owner: room.owner,
+            joined: room.joined,
+            team: room.team,
+         });
+    } else {
+        return res.json({ status: 'error', room_id: false });
+    }
+});
 
 
-//? reserved code future use
-// app.get('/api/users', async (req, res) => {   
+
+// app.post('/api/get-rooms', async (req, res) => {
+
+//     const token = req.headers['x-access-token'];
 //     try {
-//         const users = await userModel.find({});
-//         res.status(200).json(users);
-//     } catch(e) {
-//         res.status(500).json({ message: e.message});
+//         const decoded = jwt.verify(token, 'secret123capstoneprojectdonothackimportant0987654321');
+//         const email = decoded.email;
+
+//         return { status: 'ok' }
+//     } catch (e) {
+//         console.log(e);
+//         res.json({ status: 'error', error: 'Invalid token: ' + e })
 //     }
 // });
 
-// app.post('/api/users', async (req, res) => {
-//     try {
-//         const user = await userModel.create(req.body);
-//         res.status(200).json(user);
-//     } catch(e) {
-//         res.status(500).json({ message: e.message });
-//     }
-// });
 
 
 
+
+
+//! Socket.IO code, do not change anything beyond here
+//! Socket.IO code, do not change anything beyond here
 //! Socket.IO code, do not change anything beyond here
 
 const userSocketMap = {};
