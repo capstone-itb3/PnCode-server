@@ -22,7 +22,13 @@ const roomSchema = new mongoose.Schema({
     team: {
         type: String,
         required: false
+    },
+    code: {
+        type: Object,
+        required: false,
+        default: ''
     }
+
 }, { timestamps : true, collection : 'rooms' });
 
 const roomModel = mongoose.model('rooms', roomSchema);

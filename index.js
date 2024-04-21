@@ -175,12 +175,15 @@ app.post('/api/display-rooms', async (req, res) => {
 
 
 
-//! Socket.IO code, do not change anything beyond here
-//! Socket.IO code, do not change anything beyond here
-//! Socket.IO code, do not change anything beyond here
+//! Socket.IO code, do not change anything beyond here unless necessary
+//! Socket.IO code, do not change anything beyond here unless necessary
+//! Socket.IO code, do not change anything beyond here unless necessary
 
+
+//* map of users active in different rooms identified using socket 
 const userSocketMap = {};
 
+//* array of users connected per socket
 const getAllConnectedUsers = (room_id) => {
     return Array.from(io.sockets.adapter.rooms.get(room_id) || []).map(
         (socketId) => {
@@ -192,9 +195,11 @@ const getAllConnectedUsers = (room_id) => {
     );
 };
 
+//* starts socket.io, every real-time connection happens here
 io.on('connection', (socket) =>  {
     console.log(`User connected: ${socket.id}`);
 
+    //*onJoin function, triggers when user/s join the room
     socket.on('join', ({ room_id, username }) => {
          userSocketMap[socket.id] = username;
          socket.join(room_id);
@@ -210,14 +215,25 @@ io.on('connection', (socket) =>  {
         }); 
     });
 
+
+    //*onUpdate function, triggers when code in the editor is being changed
     socket.on('update', ({ room_id, code }) => {
-        socket.in(room_id).emit('update', {code});          
+        socket.in(room_id).emit('update', {code});
+        
+        async function updateRoom () {
+            await roomModel.updateOne({room_id: room_id}, {
+                code: code
+            });
+        }
+        updateRoom();
     });
 
+    //*onSync function, triggers to sync the changing code with other users in the room
     socket.on('sync', ({ socketId, code }) => {
         io.to(socketId).emit('update', {code});
     });
 
+    //*onDisconnecting function, triggers when the user leaves a room
     socket.on('disconnecting', () => {
         const rooms = [...socket.rooms];
         rooms.forEach ((room_id) => {
@@ -230,4 +246,24 @@ io.on('connection', (socket) =>  {
         socket.leave;
     });
 
+});
+
+//*POST function to load rooms in dashboard
+app.post('/api/get-code', async (req, res) => {
+    const room = await roomModel.findOne({
+        room_id: req.body.room_id
+    });
+    
+    if (room) {
+        return res.json({ 
+            room_id: room.room_id,
+            room_name: room.room_name,
+            owner: room.owner,
+            joined: room.joined,
+            team: room.team,
+            code: room.code
+         });
+    } else {
+        return res.json({ status: 'error', room_id: false });
+    }
 });
