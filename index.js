@@ -1,66 +1,77 @@
+//*Express module imports
 const express = require('express');
 const app = express();
 const http = require('http');
 
+//*Socket.io module imports
 const { Server } = require('socket.io');
 let server = http.createServer(app);
 const io = new Server(server);
 
+//*MongoDB module imports
 const mongoose = require('mongoose');
 const cors = require('cors');
-const multer = require('multer');
-
 const { uri }  = require('./database');
+
+//*Utilities
+const { v4: uuid } = require('uuid');
 const jwt = require('jsonwebtoken');
+//const multer = require('multer');
 //const records = require('./routes/record');
 
+//*Models
 const userModel = require('./models/users.model');
 const roomModel = require('./models/rooms.model');
 
-app.use(cors());
-//app.use('user', records);
-app.use(express.json());
-
+//*PORT the server will use
 const PORT = process.env.PORT || 5000;
 
+
+//*Connects to the database
 mongoose.connect(uri).then(() => {
     console.log('Connected to database.');
+
+    //*Starts the server and listens to the PORT  
     app.listen = server.listen(PORT, () => {
         console.log(`Server is running on port:${PORT}`);    
     });
+
 }).catch(() => {
     console.log('Error. Connection failed.')
 });
 
+app.use(cors());
+app.use(express.json());
+
+//*POST function when user registers
 app.post('/api/register', async (req, res) => {
     try {
-        const user = await userModel.create({
-            username: req.body.username,
-            email: req.body.email,
-            password: req.body.password,
-            rooms: [],
-            classes: [],
-            teams: []
-        });
+        if(await userModel.findOne({username: req.body.username})) {
+            return res.json({status: 'invalid', error: 'Username is already used by another account.'});
 
-        const token = jwt.sign({
-            username: user.username,
-            email: user.email,
-            password: user.password,
-
-        }, 'secret123capstoneprojectdonothackimportant0987654321');
-        
-        res.json({ status: 'ok', user: token});    
+        } else {
+            await userModel.create({
+                username: req.body.username,
+                email: req.body.email,
+                password: req.body.password,
+                rooms: [],
+                classes: [],
+                teams: []
+            });
+            
+            return res.json({ status: 'ok' });   
+        } 
     } catch (e) {
-        res.status(500).json({ status: false });
+        res.status(500).json({ status: 'error', error: 'Connection failed. Try again later.' });
     }
 });
 
+//*POST function when user logs in
 app.post('/api/login', async (req, res) => {
     const user = await userModel.findOne({
         username: req.body.username,
         password: req.body.password,
-});
+    });
     
     if (user) {
         const token = jwt.sign({
@@ -79,6 +90,52 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+//*POST function when user creates a room
+app.post('/api/create-room', async (req, res) => {    
+    try {
+        let roomExists = true;
+
+        let new_id = 123;
+        while (roomExists) {
+            new_id = uuid().toString();
+            roomExists = await roomModel.findOne({
+                room_id: new_id
+            });
+        }
+    
+        await roomModel.create({
+            room_id: new_id,
+            room_name: 'New-room',
+            owner: req.body.username,
+            joined: [],
+            team: ''
+        });
+
+        await userModel.updateOne({username: req.body.username}, {
+                $push: {rooms: new_id}
+        })
+        
+        const user = await userModel.findOne({
+            username: req.body.username,
+        });
+    
+        const token = jwt.sign({
+            username: user.username,
+            email: user.email,
+            password: user.password,
+            rooms: user.rooms,
+            teams: user.teams,
+            classes: user.classes
+    
+        }, 'secret123capstoneprojectdonothackimportant0987654321');            
+        
+        return res.json({ status: 'ok', room_id: new_id, user: token });
+    } catch (e) {
+        res.status(500).json({ status: false, error: 'Error'});
+    }
+});
+
+//*POST function to load rooms in dashboard
 app.post('/api/display-rooms', async (req, res) => {
     const room = await roomModel.findOne({
         room_id: req.body.room_id
