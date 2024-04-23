@@ -43,6 +43,19 @@ mongoose.connect(uri).then(() => {
 app.use(cors());
 app.use(express.json());
 
+
+function tokenize (user) {
+    return jwt.sign({
+                username: user.username,
+                email: user.email,
+                password: user.password,
+                rooms: user.rooms,
+                teams: user.teams,
+                classes: user.classes
+
+    }, 'secret123capstoneprojectdonothackimportant0987654321');
+};
+
 //*POST function when user registers
 app.post('/api/register', async (req, res) => {
     try {
@@ -74,15 +87,7 @@ app.post('/api/login', async (req, res) => {
     });
     
     if (user) {
-        const token = jwt.sign({
-            username: user.username,
-            email: user.email,
-            password: user.password,
-            rooms: user.rooms,
-            teams: user.teams,
-            classes: user.classes
-    
-        }, 'secret123capstoneprojectdonothackimportant0987654321');
+        const token = tokenize(user);
 
         return res.json({ status: 'ok', user: token });
     } else {
@@ -119,15 +124,7 @@ app.post('/api/create-room', async (req, res) => {
             username: req.body.username,
         });
     
-        const token = jwt.sign({
-            username: user.username,
-            email: user.email,
-            password: user.password,
-            rooms: user.rooms,
-            teams: user.teams,
-            classes: user.classes
-    
-        }, 'secret123capstoneprojectdonothackimportant0987654321');            
+        const token = tokenize(user);            
         
         return res.json({ status: 'ok', room_id: new_id, user: token });
     } catch (e) {
@@ -140,19 +137,42 @@ app.post('/api/display-rooms', async (req, res) => {
     const room = await roomModel.findOne({
         room_id: req.body.room_id
     });
-    
+
+
     if (room) {
+        const convertOffset = req.body.timezone_diff * 60 * 1000;
+        const resDate = new Date(room.updatedAt.getTime() - convertOffset);
+
         return res.json({ 
             room_id: room.room_id,
             room_name: room.room_name,
             owner: room.owner,
             joined: room.joined,
             team: room.team,
+            updatedAt: resDate
          });
     } else {
         return res.json({ status: 'error', room_id: false });
     }
 });
+
+app.post('/api/sort-rooms', async (req, res) => {
+    let sorted_rooms = [];
+
+    for (let i = 0; i < req.body.rooms.length; i++) {
+        sorted_rooms[i] = await roomModel.findOne({
+            room_id: req.body.rooms[i]
+        });
+
+        const convertOffset = req.body.timezone_diff * 60 * 1000;
+        sorted_rooms[i].updatedAt = new Date(sorted_rooms[i].updatedAt.getTime() - convertOffset);
+    }
+
+    sorted_rooms.sort((a, b) => b.updatedAt - a.updatedAt);
+    
+    return res.json({ sorted_rooms: sorted_rooms });
+});
+
 
 //*POST function to verify if joined room exists
 app.post('/api/verify-room', async (req, res) => {
@@ -194,15 +214,7 @@ app.post('/api/add-joined', async (req, res) => {
                 username: req.body.username,
             });
         
-            const token = jwt.sign({
-                username: user.username,
-                email: user.email,
-                password: user.password,
-                rooms: user.rooms,
-                teams: user.teams,
-                classes: user.classes
-        
-            }, 'secret123capstoneprojectdonothackimportant0987654321');            
+            const token = tokenize(user);            
     
             return res.json({ status: 'ok', user: token });
         } catch (e) {
@@ -217,7 +229,6 @@ app.post('/api/rename-room', async (req, res) => {
         room_name: req.body.room_name,
     });
 });
-
 
 // app.post('/api/get-rooms', async (req, res) => {
 
