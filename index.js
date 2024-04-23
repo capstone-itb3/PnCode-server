@@ -131,7 +131,7 @@ app.post('/api/create-room', async (req, res) => {
         
         return res.json({ status: 'ok', room_id: new_id, user: token });
     } catch (e) {
-        res.status(500).json({ status: false, error: 'Error'});
+        res.status(500).json({ status: false, error: e});
     }
 });
 
@@ -154,6 +154,69 @@ app.post('/api/display-rooms', async (req, res) => {
     }
 });
 
+//*POST function to verify if joined room exists
+app.post('/api/verify-room', async (req, res) => {
+    const room = await roomModel.findOne({
+        room_id: req.body.room_id
+    });
+    
+    if (room) {
+        return res.json({ 
+            room_id: room.room_id,
+            room_name: room.room_name,
+            owner: room.owner,
+            joined: room.joined,
+            team: room.team,
+            code: room.code
+         });
+    } else {
+        return res.json({ status: 'invalid', room_id: false });
+    }
+});
+
+//*POST function to add user in room's joined members 
+app.post('/api/add-joined', async (req, res) => {
+    const room = await roomModel.findOne({ room_id: req.body.room_id });    
+    
+    if(room.joined.includes(req.body.username)) {
+        
+    } else if (room.owner != req.body.username) {
+        try {
+            await userModel.updateOne({username: req.body.username}, {
+                $push: { rooms: req.body.room_id }
+            });
+
+            await roomModel.updateOne({ room_id: req.body.room_id }, {
+                $push: { joined: req.body.username }
+            });
+            
+            const user = await userModel.findOne({
+                username: req.body.username,
+            });
+        
+            const token = jwt.sign({
+                username: user.username,
+                email: user.email,
+                password: user.password,
+                rooms: user.rooms,
+                teams: user.teams,
+                classes: user.classes
+        
+            }, 'secret123capstoneprojectdonothackimportant0987654321');            
+    
+            return res.json({ status: 'ok', user: token });
+        } catch (e) {
+            return res.json({ status: false, error: e })
+        }
+    }
+});
+
+//*POST function when user logs in
+app.post('/api/rename-room', async (req, res) => {
+    await roomModel.updateOne({ room_id: req.body.room_id }, {
+        room_name: req.body.room_name,
+    });
+});
 
 
 // app.post('/api/get-rooms', async (req, res) => {
@@ -246,24 +309,4 @@ io.on('connection', (socket) =>  {
         socket.leave;
     });
 
-});
-
-//*POST function to load rooms in dashboard
-app.post('/api/get-code', async (req, res) => {
-    const room = await roomModel.findOne({
-        room_id: req.body.room_id
-    });
-    
-    if (room) {
-        return res.json({ 
-            room_id: room.room_id,
-            room_name: room.room_name,
-            owner: room.owner,
-            joined: room.joined,
-            team: room.team,
-            code: room.code
-         });
-    } else {
-        return res.json({ status: 'error', room_id: false });
-    }
 });
