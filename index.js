@@ -236,11 +236,11 @@ app.post('/api/rename-room', async (req, res) => {
 
 const { WebSocketServer } = require('ws'); 
 
-const wsPORT = process.env.PORT || 8080;
+const wsPORT = 9132;
 const wss = new WebSocketServer({ port: wsPORT });
 
 wss.on('connection', function connection(ws) {
-    console.log('Changed to Port 8080' )
+    console.log('Websocket Port:' + wsPORT)
     ws.on('message', function message(data) {
         console.log('received: %s', data);
     });
