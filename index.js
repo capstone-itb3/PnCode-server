@@ -31,7 +31,7 @@ const PORT = process.env.PORT || 5000;
 mongoose.connect(uri).then(() => {
     console.log('Connected to database.');
 
-    //*Starts the server and listens to the PORT  
+    //*Starts the app and listens to the PORT  
     app.listen = server.listen(PORT, () => {
         console.log(`Server is running on port:${PORT}`);    
     });
@@ -156,6 +156,7 @@ app.post('/api/display-rooms', async (req, res) => {
     }
 });
 
+//*POST function to display rooms in 'Last Updated' order
 app.post('/api/sort-rooms', async (req, res) => {
     let sorted_rooms = [];
 
@@ -230,20 +231,21 @@ app.post('/api/rename-room', async (req, res) => {
     });
 });
 
-// app.post('/api/get-rooms', async (req, res) => {
+//! WebSocket code, do not change anything beyond here unless necessary
+//! WebSocket code, do not change anything beyond here unless necessary
 
-//     const token = req.headers['x-access-token'];
-//     try {
-//         const decoded = jwt.verify(token, 'secret123capstoneprojectdonothackimportant0987654321');
-//         const email = decoded.email;
+const { WebSocketServer } = require('ws'); 
 
-//         return { status: 'ok' }
-//     } catch (e) {
-//         console.log(e);
-//         res.json({ status: 'error', error: 'Invalid token: ' + e })
-//     }
-// });
+const wsPORT = process.env.PORT || 8080;
+const wss = new WebSocketServer({ port: wsPORT });
 
+wss.on('connection', function connection(ws) {
+    console.log('Changed to Port 8080' )
+    ws.on('message', function message(data) {
+        console.log('received: %s', data);
+    });
+
+});
 
 
 
@@ -254,7 +256,7 @@ app.post('/api/rename-room', async (req, res) => {
 //! Socket.IO code, do not change anything beyond here unless necessary
 
 
-//* map of users active in different rooms identified using socket 
+// * map of users active in different rooms identified using socket 
 const userSocketMap = {};
 
 //* array of users connected per socket
@@ -278,7 +280,6 @@ io.on('connection', (socket) =>  {
          userSocketMap[socket.id] = username;
          socket.join(room_id);
          const users = getAllConnectedUsers(room_id);
-         console.log(users);
 
          users.forEach(({ socketId }) => {
             io.to(socketId).emit('joined', {
