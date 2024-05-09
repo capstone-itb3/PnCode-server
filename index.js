@@ -231,21 +231,21 @@ app.post('/api/rename-room', async (req, res) => {
     });
 });
 
-//! WebSocket code, do not change anything beyond here unless necessary
-//! WebSocket code, do not change anything beyond here unless necessary
+// //! WebSocket code, do not change anything beyond here unless necessary
+// //! WebSocket code, do not change anything beyond here unless necessary
 
-const { WebSocketServer } = require('ws'); 
+// const { WebSocketServer } = require('ws'); 
 
-const wsPORT = 9132;
-const wss = new WebSocketServer({ port: wsPORT });
+// const wsPORT = 8080;
+// const wss = new WebSocketServer({ port: wsPORT });
 
-wss.on('connection', function connection(ws) {
-    console.log('Websocket Port:' + wsPORT)
-    ws.on('message', function message(data) {
-        console.log('received: %s', data);
-    });
+// wss.on('connection', function connection(ws) {
+//     console.log('Websocket Port:' + wsPORT)
+//     ws.on('message', function message(data) {
+//         console.log('received: %s', data);
+//     });
 
-});
+// });
 
 
 
@@ -292,21 +292,21 @@ io.on('connection', (socket) =>  {
 
 
     //*onUpdate function, triggers when code in the editor is being changed
-    socket.on('update', ({ room_id, code }) => {
-        socket.in(room_id).emit('update', {code});
-        
+    socket.on('update', ({ room_id, code, socketId }) => {        
         async function updateRoom () {
             await roomModel.updateOne({room_id: room_id}, {
                 code: code
             });
         }
         updateRoom();
+        console.log('get');
+
+        io.to(socketId).emit('sync', { code });
     });
 
-    //*onSync function, triggers to sync the changing code with other users in the room
-    socket.on('sync', ({ socketId, code }) => {
-        io.to(socketId).emit('update', {code});
-    });
+    // //*onSync function, triggers to sync the changing code with other users in the room
+    // socket.on('sync', ({ socketId, code }) => {
+    // });
 
     //*onDisconnecting function, triggers when the user leaves a room
     socket.on('disconnecting', () => {
