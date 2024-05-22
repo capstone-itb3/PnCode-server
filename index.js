@@ -48,7 +48,7 @@ function tokenize (user) {
     return jwt.sign({
                 username: user.username,
                 email: user.email,
-                password: user.password,
+                position: user.position,
                 rooms: user.rooms,
                 teams: user.teams,
                 classes: user.classes
@@ -66,6 +66,7 @@ app.post('/api/register', async (req, res) => {
             await userModel.create({
                 username: req.body.username,
                 email: req.body.email,
+                position: req.body.position,
                 password: req.body.password,
                 rooms: [],
                 classes: [],
@@ -166,7 +167,7 @@ app.post('/api/sort-rooms', async (req, res) => {
         });
 
         const convertOffset = req.body.timezone_diff * 60 * 1000;
-        sorted_rooms[i].updatedAt = new Date(sorted_rooms[i].updatedAt.getTime() - convertOffset);
+        sorted_rooms[i].updatedAt = new Date(sorted_rooms[i].updatedAt.getTime());
     }
 
     sorted_rooms.sort((a, b) => b.updatedAt - a.updatedAt);
