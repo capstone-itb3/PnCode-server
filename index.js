@@ -17,14 +17,28 @@ const { uri }  = require('./database');
 const { v4: uuid } = require('uuid');
 const jwt = require('jsonwebtoken');
 //const multer = require('multer');
-//const records = require('./routes/record');
 
 //*Models
 const studentModel = require('./models/students.model');
-const { soloRoomModel, roomModel } = require('./models/rooms.model');
+const professorModel = require('./models/professors.model');
+const sectionModel = require('./models/sections.model');
+const soloRoomModel = require('./models/solo_rooms.model');
+const assignedRoomModel = require('./models/assigned_rooms.model');
+const teamModel = require('./models/teams.model');
+const roomGroupModel = require('./models/room_groups.model');
+
+//*Routes
+const accountRouter = require('./routes/account.routes');
+const roomRouter = require('./routes/room.routes');
+const teamRouter = require('./routes/team.routes');
+
+//*Firebase connection
+const firebaseApp = require('./firebase');
+const { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } = require('firebase/auth');
 
 //*PORT the server will use
 const PORT = process.env.PORT || 5000;
+
 
 //*Connects to the database
 mongoose.connect(uri).then(() => {
@@ -36,174 +50,28 @@ mongoose.connect(uri).then(() => {
     });
 
 }).catch(() => {
-    console.log('Error. Connection failed.')
+    console.log('Error. Connection failed.');
 });
 
 app.use(cors());
 app.use(express.json());
 
-function tokenize (user) {
-    return jwt.sign({
-                student_id: user.student_id,
-                first_name: user.first_name,
-                last_name: user.last_name,
-                section: user.section,
-                position: user.position,
-                solo_rooms: user.solo_rooms,
-                assigned_rooms: user.assigned_rooms,
-                teams: user.teams
+app.use(accountRouter);
+app.use(roomRouter);
+app.use(teamRouter);
 
-    }, 'secret123capstoneprojectdonothackimportant0987654321');
-};
 
-//*POST function when user registers
-app.post('/api/register', async (req, res) => {
-    if (req.body.password.length < 8) {
-        return res.json({ status: 'error', message: 'Password must have more than 8 characters'});
-
-    } else if (req.body.password !== req.body.conf_password) {
-        return res.json({ status: 'error', message: 'Password and Re-typed Password doesn\'t match.'});
-
-    } else {
-        if (await studentModel.findOne({student_id: req.body.student_id})) {
-            return res.json({status: 'error', message: 'The Student ID you entered is already registered. ' 
-                                                       + 'If you think this is a mistake, please contact the MISD.'});
-
-        } else {
-            await studentModel.create({
-                student_id: req.body.student_id,
-                first_name: req.body.first_name,
-                last_name: req.body.last_name,
-                password: req.body.password,
-                section: req.body.section,
-                position: 'Student',
-                solo_rooms: [],
-                assigned_rooms: [],
-                teams: []
-            });
-            
-            return res.json({ status: 'ok' });   
-        }
-    }
+//*GET function to get section details
+app.get('/api/section', async (req, res) => {
+    const section = await studentModel.find({ section: req.query.section });
 });
 
-//*POST function when user logs in
-app.post('/api/login', async (req, res) => {
-    const user = await studentModel.findOne({
-        student_id: req.body.student_id,
-        password: req.body.password,
-    });
-    
-    if (user) {
-        const token = tokenize(user);
-        return res.json({ user: token });
-        
-    } else {
-        return res.json({ message: 'Incorrect student ID or password.' });
-    }
-});
-
-//*POST function when user creates a solo room
-app.post('/api/create-room-solo', async (req, res) => {
-    try {
-        let already_exists = true;
-        let new_id = 0;
-        let user, owner;
-
-        while (already_exists) {
-            new_id = uuid().toString();
-            already_exists = await soloRoomModel.findOne({
-                room_id: new_id
-            });
-        }
-
-        if (req.body.position === 'Student') {
-            owner = req.body.student_id;
-
-            await studentModel.updateOne({ student_id: req.body.student_id }, {
-                $push: {solo_rooms: new_id}
-            });
-
-            user = await studentModel.findOne({ student_id: req.body.student_id });    
-        } 
-        // else if (req.body.position === 'Professor') {
-        //  owner = req.body.email;
-        // }
-
-        await soloRoomModel.create({
-            room_id: new_id,
-            room_name: 'New room',
-            room_type: 'solo',
-            files: [],
-            notes: '',
-            owner_id: owner,
-        });
-        
-        const token = tokenize(user);
-        
-        return res.json({ status: 'ok', room_id: new_id, token: token, message: 'Room Success' });
-    } catch (e) {
-        res.status(500).json({ status: false, error: e });
-        console.log(e);
-    }
-});
-
-//*POST function to display rooms in 'Last Updated' order
-app.post('/api/get-rooms', async (req, res) => {
-    try {
-        let sorted_solo = [];
-        let sorted_assigned = [];
-        const convertOffset = req.body.timezone_diff * 60 * 1000;
-
-        for (let i = 0; i < req.body.solo_rooms.length; i++) {
-            sorted_solo[i] = await soloRoomModel.findOne({ room_id: req.body.solo_rooms[i] });
-            sorted_solo[i].updatedAt = new Date(sorted_solo[i].updatedAt.getTime() + convertOffset);
-        }
-        sorted_solo.sort((a, b) => b.updatedAt - a.updatedAt);
-        
-        for (let i = 0; i < req.body.assigned_rooms.length; i++) {
-            sorted_assigned[i] = await roomModel.findOne({ room_id: req.body.assigned_rooms[i] });
-            sorted_assigned[i].updatedAt = new Date(sorted_assigned[i].updatedAt.getTime() + convertOffset);
-        }
-
-        return res.json({ status: 'ok', solo_rooms: sorted_solo, assigned_rooms: sorted_assigned });
-    } catch (e) {
-        res.status(500).json({ status: false, error: e });
-        console.log(e);
-    }
-});
-
-//*POST function to verify if joined room exists
-app.post('/api/verify-room', async (req, res) => {
-    try {
-        let room = null;
-
-        if (req.body.room_type === 'solo') {
-            room = await soloRoomModel.findOne({ room_id: req.body.room_id });
-
-        } else if (req.body.room_type === 'assigned') {
-            room = await roomModel.findOne({ room_id: req.body.room_id });
-
-        } else {
-            return res.json({ status: 'invalid', room: false });
-        }
-        
-        if (room) {
-            return res.json({ status : 'ok', room: room});
-        } else {
-            return res.json({ status: 'invalid', room: false });
-        }
-    } catch (e) {
-        res.status(500).json({ status: false, error: e });
-        console.log(e);
-    }
-});
 
 //*POST function to add user in room's joined members 
 app.post('/api/add-joined', async (req, res) => {
     const room = await roomModel.findOne({ room_id: req.body.room_id });
     const joined =  { 
-        student_id: req.body.auth.student_id,
+        email: req.body.auth.email,
         shortened_name: req.body.auth.last_name + ', ' + req.body.auth.first_name[0] + '.'
     }
     const alreadyJoined = room.joined.forEach(() => {
@@ -213,9 +81,9 @@ app.post('/api/add-joined', async (req, res) => {
     })
     if (room.joined.includes(joined)) {
         
-    } else if (room.owner.student_id != req.body.auth.student_id) {
+    } else if (room.owner.email != req.body.auth.email) {
         try {
-            await studentModel.updateOne({student_id: req.body.auth.student_id}, {
+            await studentModel.updateOne({email: req.body.auth.email}, {
                 $push: { rooms: req.body.room_id }
             });
 
@@ -224,11 +92,6 @@ app.post('/api/add-joined', async (req, res) => {
                 $push: { joined: joined }
             });
             
-            const user = await studentModel.findOne({
-                student_id: req.body.auth.student_id,
-            });
-        
-            const token = tokenize(user);            
     
             return res.json({ status: 'ok', user: token });
         } catch (e) {
@@ -237,12 +100,6 @@ app.post('/api/add-joined', async (req, res) => {
     }
 });
 
-//*POST function when user logs in
-app.post('/api/rename-room', async (req, res) => {
-    await roomModel.updateOne({ room_id: req.body.room_id }, {
-        room_name: req.body.room_name,
-    });
-});
 
 // //! WebSocket code, do not change anything beyond here unless necessary
 // //! WebSocket code, do not change anything beyond here unless necessary

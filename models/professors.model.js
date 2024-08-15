@@ -1,0 +1,60 @@
+const mongoose = require('mongoose');
+
+const assignedCourseSchema = new mongoose.Schema({
+    course_code: {
+        type: String,
+        required: true    
+    },
+    sections: {
+        type: [String]
+    }
+});
+
+const professorSchema = new mongoose.Schema({
+    uid: {
+        type: String,
+        required: true,
+    },
+    email: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    first_name: {
+        type: String,
+        required: true
+    },
+    last_name: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    position: {
+        type: String,
+        required: true
+    },
+    assigned_courses: {
+        type: [assignedCourseSchema],
+        required: true
+    },
+    solo_rooms: {
+        type: [String],
+        required: false,
+        default: []
+    },
+    room_groups: {
+        type: [String],
+        required: false,
+        default: []
+    },
+    preferences: {
+        type: Object,
+        required: false,
+        default: {}
+    },
+}, { timestamps: true, collection: 'professors' });
+
+const professorModel = mongoose.model('professors', professorSchema);
+
+module.exports = professorModel;
+

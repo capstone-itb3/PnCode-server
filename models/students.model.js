@@ -1,11 +1,23 @@
 const mongoose = require('mongoose');
 
+const enrolledCourseSchema = new mongoose.Schema({
+    course_code: {
+        type: String
+    },
+    section: {
+        type: String
+    }
+});
+
 const studentSchema = new mongoose.Schema({
-    student_id: {
+    uid: {
+        type: String,
+        required: true,
+    },
+    email: {
         type: String,
         required: true,
         unique: true,
-        length: 7
     },
     first_name: {
         type: String,
@@ -15,33 +27,17 @@ const studentSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
-    password: {
-        type: String,
-        required: true, 
-        minlength: 8
-    },
     position: {
         type: String,
         required: true, 
     },
     section: {
-        type: Array,
+        type: String,
         required: true, 
     },
-    solo_rooms: {
-        type: [String],
-        required: false,
-        default: [],
-    },
-    assigned_rooms: {
-        type: [String],
-        required: false,
-        default: [],
-    },
-    teams: {
-        type: [String],
-        required: false,
-        default: [],
+    enrolled_courses: {
+        type: [enrolledCourseSchema],
+        required: false, 
     },
     preferences: {
         type: Object,

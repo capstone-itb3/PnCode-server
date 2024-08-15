@@ -1,36 +1,29 @@
 const mongoose = require('mongoose');
 
-const soloRoomSchema = new mongoose.Schema({
-    room_id: {
-        type: String,
-        required: true,
-        unique: true
-    },
-    room_name: {
-        type: String,
-        required: true
-    },
-    room_type: {
-        type: String,
-        required: true
-    },
-    files: {
-        type: [Object],
-        required: false,
-        default: []
-    },
-    notes: {
+const feedbackSchema = new mongoose.Schema({
+    feedback_body: {
         type: String,
         required: false,
         default: ''
     },
-    owner_id: {
+    professor_uid: {
+        type: String,
+        required: true
+    }
+}, { timestamps: true });
+
+const chatSchema = new mongoose.Schema({
+    chat_body: {
         type: String,
         required: true
     },
-}, { timestamps : true, collection : 'solo-rooms' });
+    sender_uid: {
+        type: String,
+        required: true
+    },
+}, { timestamps: true });
 
-const roomSchema = new mongoose.Schema({
+const assignedRoomSchema = new mongoose.Schema({
     room_id: {
         type: String,
         required: true,
@@ -55,27 +48,26 @@ const roomSchema = new mongoose.Schema({
         default: ''
     },
     group_id: {
-        type: Object,
+        type: String,
         required: true
     },
     assigned: {
-        type: Object,
+        type: [String],
         required: false,
-        default: {}
-    },
+        default: []
+    },  
     feedback: {
-        type: [Object],
+        type: [feedbackSchema],
         required: false,
         default: []
     },
     chat: {
-        type: [Object],
+        type: [chatSchema],
         required: false,
         default: []
     },
 }, { timestamps : true, collection : 'rooms' });
 
-const soloRoomModel = mongoose.model('solo-rooms', soloRoomSchema);
-const roomModel = mongoose.model('rooms', roomSchema);
+const assignedRoomModel = mongoose.model('assigned-rooms', assignedRoomSchema);
 
-module.exports = { soloRoomModel, roomModel };
+module.exports = assignedRoomModel;
