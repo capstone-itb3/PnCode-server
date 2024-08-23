@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const feedbackSchema = new mongoose.Schema({
     feedback_body: {
         type: String,
-        required: false,
+        required: true,
         default: ''
     },
     professor_uid: {
@@ -37,8 +37,16 @@ const assignedRoomSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    activity_id: {
+        type: String,
+        required: true
+    },
+    owner_id: {
+        type: String,
+        required: true,
+    },  
     files: {
-        type: [Object],
+        type: [String],
         required: false,
         default: []
     },
@@ -47,15 +55,6 @@ const assignedRoomSchema = new mongoose.Schema({
         required: false,
         default: ''
     },
-    group_id: {
-        type: String,
-        required: true
-    },
-    assigned: {
-        type: [String],
-        required: false,
-        default: []
-    },  
     feedback: {
         type: [feedbackSchema],
         required: false,
@@ -66,7 +65,7 @@ const assignedRoomSchema = new mongoose.Schema({
         required: false,
         default: []
     },
-}, { timestamps : true, collection : 'rooms' });
+}, { timestamps : true, collection : 'assigned-rooms' });
 
 const assignedRoomModel = mongoose.model('assigned-rooms', assignedRoomSchema);
 

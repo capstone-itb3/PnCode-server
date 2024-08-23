@@ -9,7 +9,27 @@ const enrolledCourseSchema = new mongoose.Schema({
     }
 });
 
+const notificationSchema = new mongoose.Schema({
+    message: {
+        type: String,
+        required: true
+    },
+    date: {
+        type: Date,
+        required: true
+    },
+    is_read: {
+        type: Boolean,
+        required: true
+    }
+});
+
 const studentSchema = new mongoose.Schema({
+    image: {
+        type: String,
+        required: false,
+        default: null
+    },
     uid: {
         type: String,
         required: true,
@@ -38,6 +58,11 @@ const studentSchema = new mongoose.Schema({
     enrolled_courses: {
         type: [enrolledCourseSchema],
         required: false, 
+    },
+    notifications: {
+        type: [notificationSchema],
+        required: false,
+        default: []
     },
     preferences: {
         type: Object,

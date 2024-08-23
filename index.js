@@ -25,16 +25,20 @@ const sectionModel = require('./models/sections.model');
 const soloRoomModel = require('./models/solo_rooms.model');
 const assignedRoomModel = require('./models/assigned_rooms.model');
 const teamModel = require('./models/teams.model');
-const roomGroupModel = require('./models/room_groups.model');
+const activityModel = require('./models/activities.model');
 
 //*Routes
 const accountRouter = require('./routes/account.routes');
 const roomRouter = require('./routes/room.routes');
 const teamRouter = require('./routes/team.routes');
+const activityRouter = require('./routes/activity.routes');
 
 //*Firebase connection
 const firebaseApp = require('./firebase');
 const { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } = require('firebase/auth');
+const { getFirestore, doc, setDoc } = require('firebase/firestore');
+const db = getFirestore(firebaseApp);
+
 
 //*PORT the server will use
 const PORT = process.env.PORT || 5000;
@@ -59,45 +63,28 @@ app.use(express.json());
 app.use(accountRouter);
 app.use(roomRouter);
 app.use(teamRouter);
+app.use(activityRouter);
 
+app.get('/api/get-course-professor' , async (req, res) => {
+    try {
+        const professor = await professorModel.findOne({
+            assigned_courses : {
+                $elemMatch: {
+                    course_code: req.query.course_code,
+                    sections: req.query.section
+                }
+            }
+        });
 
-//*GET function to get section details
-app.get('/api/section', async (req, res) => {
-    const section = await studentModel.find({ section: req.query.section });
-});
-
-
-//*POST function to add user in room's joined members 
-app.post('/api/add-joined', async (req, res) => {
-    const room = await roomModel.findOne({ room_id: req.body.room_id });
-    const joined =  { 
-        email: req.body.auth.email,
-        shortened_name: req.body.auth.last_name + ', ' + req.body.auth.first_name[0] + '.'
+        res.status(200).json({  status: 'ok',
+                                name: professor ? `${professor.first_name} ${professor.last_name}` : 'TBA',
+                                message: 'Successfully retrieved professor name.' });
+    } catch (e) {
+        console.log(e);
+        res.status(500).json({  status: false, 
+                                message: 'Internal Server Error' });
     }
-    const alreadyJoined = room.joined.forEach(() => {
-        let bool = false;
 
-        return false;
-    })
-    if (room.joined.includes(joined)) {
-        
-    } else if (room.owner.email != req.body.auth.email) {
-        try {
-            await studentModel.updateOne({email: req.body.auth.email}, {
-                $push: { rooms: req.body.room_id }
-            });
-
-
-            await roomModel.updateOne({ room_id: req.body.room_id }, {
-                $push: { joined: joined }
-            });
-            
-    
-            return res.json({ status: 'ok', user: token });
-        } catch (e) {
-            return res.json({ status: false, error: e })
-        }
-    }
 });
 
 

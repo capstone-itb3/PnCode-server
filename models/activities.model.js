@@ -1,12 +1,12 @@
 const mongoose = require('mongoose');
 
-const roomGroupSchema = new mongoose.Schema({
-    group_id: {
+const activitySchema = new mongoose.Schema({
+    activity_id: {
         type: String,
         required: true,
         unique: true
     },
-    group_name: {
+    activity_name: {
         type: String,
         required: true
     },
@@ -18,27 +18,27 @@ const roomGroupSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    rooms: {
-        type: [String],
-        required: false,
-        default: []
-    },
     instructions: {
         type: String,
         required: false
     },
     open_time: {
-        type: Date,
+        type: String,
         required: false,
         default: null
     },
     close_time: {
-        type: Date,
+        type: String,
         required: false,
         default: null
     },
-}, { timestamps: true, collection: 'room-groups' });
+    deadline: {
+        type: Date,
+        required: false,
+        default: null
+    }
+}, { timestamps: true, collection: 'activities' });
 
-const roomGroupModel = mongoose.model('room-groups', roomGroupSchema);
+const activityModel = mongoose.model('activities', activitySchema);
 
-module.exports = roomGroupModel;
+module.exports = activityModel;

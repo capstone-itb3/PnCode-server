@@ -10,7 +10,27 @@ const assignedCourseSchema = new mongoose.Schema({
     }
 });
 
+const notificationSchema = new mongoose.Schema({
+    message: {
+        type: String,
+        required: true
+    },
+    date: {
+        type: Date,
+        required: true
+    },
+    is_read: {
+        type: Boolean,
+        required: true
+    }
+});
+
 const professorSchema = new mongoose.Schema({
+    image: {
+        type: String,
+        required: false,
+        default: null
+    },
     uid: {
         type: String,
         required: true,
@@ -37,13 +57,8 @@ const professorSchema = new mongoose.Schema({
         type: [assignedCourseSchema],
         required: true
     },
-    solo_rooms: {
-        type: [String],
-        required: false,
-        default: []
-    },
-    room_groups: {
-        type: [String],
+    notifications: {
+        type: [notificationSchema],
         required: false,
         default: []
     },

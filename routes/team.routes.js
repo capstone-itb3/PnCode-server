@@ -19,21 +19,18 @@ teamRouter.get('/api/get-teams', async (req, res) => {
             const user = await studentModel.findOne({ uid: member });
             
             return {
+                image: user.image,
                 uid: user.uid,
                 first_name: user.first_name,
                 last_name: user.last_name
             };
         }
-
-        console.log(teams);
         
         res.status(200).json({ status: 'ok', teams: teams });
     } catch (err) {
         res.status(500).json({ status: 'error', message: 'Error. Retrieving teams failed.' });
     }
 });
-
-
 
 teamRouter.post('/api/get-included-students', async (req, res) => {
     try {
@@ -49,7 +46,6 @@ teamRouter.post('/api/get-included-students', async (req, res) => {
                         first_name: student.first_name,
                         last_name: student.last_name
                     });
-                    console.log('found');
                 }
             });
         });

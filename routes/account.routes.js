@@ -1,7 +1,8 @@
 const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 const sectionModel = require('../models/sections.model');
-const tokenizer = require('./tokenizer');
+const courseModel = require('../models/courses.model');
+const { tokenizeStudent, tokenizeProfessor } = require('./tokenizer');
 const { client }  = require('../database');
 
 const express = require('express');
@@ -14,15 +15,18 @@ const { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPass
 //*POST function when user registers
 accountRouter.post('/api/register', async (req, res) => {
     if (req.body.password.length < 8) {
-        return res.json({ status: 'error', message: 'Password must have more than 8 characters'});
+        return res.json({   status: 'error', 
+                            message: 'Password must have more than 8 characters'});
 
     } else if (req.body.password !== req.body.conf_password) {
-        return res.json({ status: 'error', message: 'Password and Re-typed Password doesn\'t match.'});
+        return res.json({   status: 'error', 
+                            message: 'Password and Re-typed Password doesn\'t match.'});
 
     } else {
         if (await studentModel.findOne({email: req.body.email})) {
-            return res.json({status: 'error', message: 'The email address you entered is already registered. ' 
-                                                       + 'If you think this is a mistake, please contact the MISD.'});
+            return res.json({   status: 'error', 
+                                message: 'The email address you entered is already registered. ' 
+                                       + 'If you think this is a mistake, please contact the MISD.'});
     
         } else {            
             try {
@@ -63,6 +67,7 @@ accountRouter.post('/api/register', async (req, res) => {
                         };
 
                         await studentModel.create({
+                            image: null,
                             uid: user.uid,
                             email: req.body.email,
                             first_name: req.body.first_name,
@@ -70,54 +75,67 @@ accountRouter.post('/api/register', async (req, res) => {
                             section: `${req.body.year}${req.body.section}`,
                             position: 'Student',
                             enrolled_courses: enrolled_courses(),
+                            notifications: [],
                             preferences: {} 
                         });
                     }                    
                     createUser();
 
-                    return res.json({ status: 'ok', message: 'Sign up successful. You can now log in.'});
+                    return res.json({   status: 'ok', 
+                                        message: 'Sign up successful. You can now log in.'});
                     
                 }).catch((err) => {
-                    return res.json({ status: err.code, message: err.message})
+                    return res.json({   status: err.code, 
+                                        message: err.message})
                 })
 
             } catch (err) {
-                return res.json({status: err.code, message: err.message});
+                return res.json({   status: err.code, 
+                                    message: err.message});
             }
         }
     }
  })//.patch((err) => { console.error(err); });
 
-//*POST function when user logs in
+//*POST function when student logs in
 accountRouter.post('/api/login', async (req, res) => {
     try {
         const auth = getAuth(firebaseApp);
         const user_data = await studentModel.findOne({ email: req.body.email });
 
-        await signInWithEmailAndPassword(auth, req.body.email, req.body.password)
-        .then(() => {
+        const user = await signInWithEmailAndPassword(auth, req.body.email, req.body.password);
 
-            if (user_data) {
-                const token = tokenizer(user_data);
+        if (user_data && user) {
+            const course_list = await Promise.all(user_data.enrolled_courses.map(setInfo));
 
-                return res.json({   status: 'ok', 
-                                    token: token,
-                                    starting_course: user_data.enrolled_courses[0].course_code,
-                                    message: 'Logged in successfully.'});
-    
-            } else {
-                return res.json({ status: 'error', message: 'Internal Server Error. User data couldn\'t be retrived.' });
-            }  
+            async function setInfo(course) {
+                const info = await courseModel.findOne({ course_code: course.course_code });
+                return {
+                    course_code: info.course_code,
+                    course_title: info.course_title,
+                    section: course.section
+                };
+            }
             
-        }).catch((err) => {
-            return res.json({ status: err.code, message: 'Invalid credentials.' });
-        });    
+
+            const token = tokenizeStudent(user_data, course_list);
+
+            return res.json({   status: 'ok', 
+                                token: token,
+                                starting_course: user_data.enrolled_courses[0].course_code,
+                                message: 'Logged in successfully.'});
+        } else {
+            return res.json({ status: 'error', 
+                                message: 'Internal Server Error. User data couldn\'t be retrived.' });
+        }  
+            
     } catch (err) {
-        return res.json({ status: err.code, message: err.message });
+        return res.json({   status: err.code, 
+                            message: err.message });
     }
 });
 
-//*POST function when user logs in
+//*POST function when professor logs in
 accountRouter.post('/api/login/professor', async (req, res) => {
     try {
         const auth = getAuth(firebaseApp);
@@ -127,7 +145,7 @@ accountRouter.post('/api/login/professor', async (req, res) => {
         .then(() => {
 
             if (user_data) {
-                const token = tokenizer(user_data);
+                const token = tokenizeProfessor(user_data);
 
                 return res.json({   status: 'ok', 
                                     token: token, 
@@ -136,14 +154,17 @@ accountRouter.post('/api/login/professor', async (req, res) => {
                                     message: 'Logged in successfully.'});
     
             } else {
-                return res.json({ status: 'error', message: 'Internal Server Error. User data couldn\'t be retrived.' });
+                return res.json({   status: 'error', 
+                                    message: 'Internal Server Error. User data couldn\'t be retrived.' });
             }  
             
         }).catch((err) => {
-            return res.json({ status: err.code, message: 'Invalid credentials.' });
+            return res.json({   status: err.code, 
+                                message: 'Invalid credentials.' });
         });    
     } catch (err) {
-        return res.json({ status: err.code, message: err.message });
+        return res.json({   status: err.code, 
+                            message: err.message });
     }
 });
 

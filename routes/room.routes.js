@@ -76,51 +76,6 @@ roomRouter.post('/api/get-solo-rooms', async (req, res) => {
     }
 });
 
-//*POST function to get assigned rooms for student users
-roomRouter.post('/api/get-assigned-rooms', async (req, res) => {
-    try {
-        const assigned_rooms = await assignedRoomModel.find({ owner_id: req.body.uid });
-        const convertOffset = req.body.timezone_diff * 60 * 1000;
-        
-        for (let i = 0; i < assigned_rooms.length; i++) {
-            assigned_rooms[i].updatedAt = new Date(assigned_rooms[i].updatedAt.getTime() + convertOffset);
-        }
-        assigned_rooms.sort((a, b) => b.updatedAt - a.updatedAt);
-
-        return res.json({ status: 'ok', assigned_rooms: assigned_rooms });
-    } catch (err) {
-        res.status(500).json({ status: false, error: err });
-        console.log(err);
-    }
-});
-
-
-//*POST function to verify if joined room exists
-roomRouter.post('/api/verify-room', async (req, res) => {
-    try {
-        let room = null;
-
-        if (req.body.room_type === 'solo') {
-            room = await soloRoomModel.findOne({ room_id: req.body.room_id });
-
-        } else if (req.body.room_type === 'assigned') {
-            room = await roomModel.findOne({ room_id: req.body.room_id });
-
-        } else {
-            return res.json({ status: 'invalid', room: false });
-        }
-        
-        if (room) {
-            return res.json({ status : 'ok', room: room});
-        } else {
-            return res.json({ status: 'invalid', room: false });
-        }
-    } catch (e) {
-        res.status(500).json({ status: false, error: e });
-        console.log(e);
-    }
-});
-
 //*POST function when user renames current room
 roomRouter.post('/api/rename-room', async (req, res) => {
     await roomModel.updateOne({ room_id: req.body.room_id }, {

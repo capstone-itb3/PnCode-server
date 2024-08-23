@@ -1,5 +1,5 @@
 const { MongoClient, ServerApiVersion } = require('mongodb');
-const uri = "mongodb+srv://lleguejohnromar02:Ri3fMCChPuLmmyhM@codlin-database.nimrooa.mongodb.net/codlin_db?retryWrites=true&w=majority&appName=codlin-database";
+const uri = "mongodb+srv://itb3-serveruser:rTcCwFcHmLcSsAjTps@pncode-cluster.6cbof.mongodb.net/pncode_db?retryWrites=true&w=majority&appName=pncode-cluster";
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -22,9 +22,10 @@ const client = new MongoClient(uri, {
 //     await client.close();
 //   }
 // }
-//run().catch(console.dir);
+// run().catch(console.dir);
 
 module.exports = {
   uri: uri, 
   client: client
 };
+

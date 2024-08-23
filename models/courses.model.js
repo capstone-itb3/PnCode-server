@@ -4,9 +4,11 @@ const courseSchema = new mongoose.Schema({
     course_code: {
         type: String
     },
-    section: {
+    course_title: {
         type: String
     }
-});
+}, { collection: 'courses' });
 
-module.exports = courseSchema;
+const courseModel = mongoose.model('courses', courseSchema);
+
+module.exports = courseModel;
