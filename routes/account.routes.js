@@ -141,27 +141,33 @@ accountRouter.post('/api/login/professor', async (req, res) => {
         const auth = getAuth(firebaseApp);
         const user_data = await professorModel.findOne({ email: req.body.email });
 
-        await signInWithEmailAndPassword(auth, req.body.email, req.body.password)
-        .then(() => {
+        const user = await signInWithEmailAndPassword(auth, req.body.email, req.body.password);
 
-            if (user_data) {
-                const token = tokenizeProfessor(user_data);
+        if (user_data && user) {
+            const course_list = await Promise.all(user_data.assigned_courses.map(setInfo));
 
-                return res.json({   status: 'ok', 
-                                    token: token, 
-                                    starting_course: user_data.assigned_courses[0].course_code,
-                                    starting_section: user_data.assigned_courses[0].sections[0].toString(),
-                                    message: 'Logged in successfully.'});
-    
-            } else {
-                return res.json({   status: 'error', 
-                                    message: 'Internal Server Error. User data couldn\'t be retrived.' });
-            }  
-            
-        }).catch((err) => {
-            return res.json({   status: err.code, 
-                                message: 'Invalid credentials.' });
-        });    
+            async function setInfo(course) {
+                const info = await courseModel.findOne({ course_code: course.course_code });
+                return {
+                    course_code: info.course_code,
+                    course_title: info.course_title,
+                    sections: course.sections
+                };
+            }
+
+            const token = tokenizeProfessor(user_data, course_list);
+
+            return res.json({   status: 'ok', 
+                                token: token, 
+                                starting_course: user_data.assigned_courses[0].course_code,
+                                starting_section: user_data.assigned_courses[0].sections[0].toString(),
+                                message: 'Logged in successfully.'});
+
+        } else {
+            return res.json({   status: false, 
+                                message: 'Invalid credentials' });
+        }  
+
     } catch (err) {
         return res.json({   status: err.code, 
                             message: err.message });

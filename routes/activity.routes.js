@@ -66,7 +66,7 @@ activityRouter.post('/api/visit-activity', async (req, res) => {
         });
 
         if (!team) {
-            return res.status(404).json({ status: false, message: 'Please join or create a team first.' });
+            return res.status(500).json({ status: false, message: 'Please join or create a team first.' });
         } else {
 
             const assigned_room = await assignedRoomModel.findOne({
@@ -95,4 +95,69 @@ activityRouter.post('/api/visit-activity', async (req, res) => {
         res.status(500).json({ status: false, message: 'Error. Creating activity failed.' });
     }
 });
+
+activityRouter.post('/api/get-activity-details', async (req, res) => {
+    try {
+        const activity = await activityModel.findOne({
+            activity_id: req.body.activity_id
+        });
+
+        if (!activity) {
+            return res.status(500).json({ status: false, message: 'Activity not found.' });
+        } else {
+            let access = false;
+
+            for (let course of req.body.auth.assigned_courses) {
+                if (course.course_code === activity.course_code && course.sections.includes(activity.section)) {
+                    access = true;
+                    break;
+                }
+            }
+
+            const rooms = await assignedRoomModel.find({
+                activity_id: req.body.activity_id
+            }).lean();
+            
+            return res.status(200).json({ status: 'ok', activity: activity, access: access, rooms: rooms});            
+        }
+
+    } catch (e) {
+        console.log(e);
+        res.status(500).json({ status: false, message: 'Error. Retrieving activity details failed.' });
+    }
+});
+
+activityRouter.post('/api/update-dates', async (req, res) => {
+    try {
+        await activityModel.updateOne({ activity_id: req.body.activity_id }, {
+            open_time: req.body.open_time,
+            close_time: req.body.close_time,
+            deadline: req.body.deadline
+        });
+
+        return res.status(200).json({ status: 'ok', message: 'Activity is updated successfully.' });
+    } catch (e) {
+        console.log(e);
+        res.status(500).json({ status: false, message: 'Error. Editing activity dates failed.' });
+    }
+});
+
+activityRouter.post('/api/delete-activity', async (req, res) => {
+    try {
+        await activityModel.deleteOne({
+            activity_id: req.body.activity_id
+        });
+
+        await assignedRoomModel.deleteMany({
+            activity_id: req.body.activity_id
+        });
+
+        return res.status(200).json({ status: 'ok', message: 'Activity deleted successfully.' });
+    } catch (e) {
+        console.log(e);
+        res.status(500).json({ status: false, message: 'Error. Deleting activity failed.' });
+    }
+});
+    
+
 module.exports = activityRouter;

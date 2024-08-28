@@ -17,7 +17,7 @@ function tokenizeStudent(user, course_list) {
     return jwt.sign(token, 'secret123capstoneprojectdonothackimportant0987654321');
 };
 
-function tokenizeProfessor(user) {
+function tokenizeProfessor(user, course_list) {
     let token = {
                     image: user.image,
                     uid: user.uid,
@@ -25,7 +25,7 @@ function tokenizeProfessor(user) {
                     first_name: user.first_name,
                     last_name: user.last_name,
                     position: user.position,
-                    assigned_courses: user.assigned_courses,
+                    assigned_courses: course_list,
                     notifications: user.notifications,
                     preferences: user.preferences
                 }
