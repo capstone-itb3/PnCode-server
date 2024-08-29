@@ -53,7 +53,7 @@ const assignedRoomSchema = new mongoose.Schema({
     notes: {
         type: String,
         required: false,
-        default: ''
+        default: 'TO DO things for the activity...'
     },
     feedback: {
         type: [feedbackSchema],
@@ -65,6 +65,11 @@ const assignedRoomSchema = new mongoose.Schema({
         required: false,
         default: []
     },
+    recorded_members: {
+        type: [String],
+        required: false,
+        default: []
+    }
 }, { timestamps : true, collection : 'assigned-rooms' });
 
 const assignedRoomModel = mongoose.model('assigned-rooms', assignedRoomSchema);

@@ -57,6 +57,9 @@ activityRouter.post('/api/create-activity', async (req, res) => {
     }
 });
 
+
+//TODO: Add a function to check if the recorded members of the room instead of the team once the
+//TODO: activity deadline has aleady passed 
 activityRouter.post('/api/visit-activity', async (req, res) => {
     try {
         const team = await teamModel.findOne({
@@ -67,29 +70,27 @@ activityRouter.post('/api/visit-activity', async (req, res) => {
 
         if (!team) {
             return res.status(500).json({ status: false, message: 'Please join or create a team first.' });
-        } else {
+        } 
 
-            const assigned_room = await assignedRoomModel.findOne({
-                activity_id: req.body.activity_id,
-                owner_id: team.team_id
-            });
-    
-            
-            if (assigned_room) {
-                res.status(200).json({ status: 'ok', room_id: assigned_room.room_id, message: 'Room found.' });
+        const assigned_room = await assignedRoomModel.findOne({
+            activity_id: req.body.activity_id,
+            owner_id: team.team_id
+        });
 
-            } else {
-                const new_room = await assignedRoomModel.create({
-                    room_id: uuid().toString(),
-                    room_name: `${team.team_name}'s Room`,
-                    room_type: 'assigned',
-                    activity_id: req.body.activity_id,
-                    owner_id: team.team_id
-                });
-    
-                res.status(200).json({ status: 'ok', room_id: new_room.room_id, message: 'New room created for the activity' });
-            }    
+        if (assigned_room) {
+            return res.status(200).json({ status: 'ok', room_id: assigned_room.room_id, message: 'Room found.' });
         }
+
+        const new_room = await assignedRoomModel.create({
+            room_id: uuid().toString(),
+            room_name: `${team.team_name}'s Room`,
+            room_type: 'assigned',
+            activity_id: req.body.activity_id,
+            owner_id: team.team_id,
+            recorded_members: team.members,
+        });
+
+        return res.status(200).json({ status: 'ok', room_id: new_room.room_id, message: 'New room created for the activity' });
     } catch (e) {
         console.log(e);
         res.status(500).json({ status: false, message: 'Error. Creating activity failed.' });

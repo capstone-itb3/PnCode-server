@@ -187,7 +187,7 @@ teamRouter.post('/api/remove-member', async (req, res) => {
         const hasOngoingAct = await checkOngoingActivity(req.body.course, req.body.section, res)
 
         if (hasOngoingAct) {
-            return res.status(400).json({ status: false, message: 'You can\t remove a member because there is an ongoing activity.' });
+            return res.status(400).json({ status: false, message: 'You can\'t remove a member because there is an ongoing activity.' });
         } else {
             await teamModel.updateOne({ team_id: req.body.team_id }, 
                 { $pull: { members: req.body.student_uid }
@@ -208,7 +208,7 @@ teamRouter.post('/api/delete-team', async (req, res) => {
         const hasOngoingAct = await checkOngoingActivity(req.body.course, req.body.section, res);
 
         if (hasOngoingAct) {
-            return res.status(400).json({ status: false, message: 'You can\t remove a team because there is an ongoing activity.' });
+            return res.status(400).json({ status: false, message: 'You can\'t remove a team because there is an ongoing activity.' });
 
         } else {
             await teamModel.deleteOne({ team_id: req.body.team_id });

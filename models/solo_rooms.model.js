@@ -18,16 +18,11 @@ const soloRoomSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    files: {
-        type: [Object],
-        required: false,
-        default: []
-    },
-    notes: {
+    code: {
         type: String,
         required: false,
         default: ''
-    },
+    }
 }, { timestamps : true, collection : 'solo-rooms' });
 
 const soloRoomModel = mongoose.model('solo-rooms', soloRoomSchema);
