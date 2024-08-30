@@ -48,7 +48,7 @@ const assignedRoomSchema = new mongoose.Schema({
     files: {
         type: [String],
         required: false,
-        default: []
+        default: ['index.html', 'script.js', 'style.css']
     },
     notes: {
         type: String,
