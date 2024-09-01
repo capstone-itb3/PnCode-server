@@ -1,5 +1,20 @@
 const mongoose = require('mongoose');
 
+const fileSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true
+    },
+    type: {
+        type: String,
+        required: true
+    },
+    content: {
+        type: String,
+        required: false
+    }
+});
+
 const feedbackSchema = new mongoose.Schema({
     feedback_body: {
         type: String,
@@ -46,9 +61,13 @@ const assignedRoomSchema = new mongoose.Schema({
         required: true,
     },  
     files: {
-        type: [String],
+        type: [Object],
         required: false,
-        default: ['index.html', 'script.js', 'style.css']
+        default: [{
+            name: 'index.html',
+            type: 'html',
+            content: '',
+        }]
     },
     notes: {
         type: String,

@@ -41,6 +41,8 @@ const { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPass
 const { getFirestore, doc, setDoc } = require('firebase/firestore');
 const db = getFirestore(firebaseApp);
 
+//*Socket.io connection
+const socketConnect = require('./socket events/main');
 
 //*PORT the server will use
 const PORT = process.env.PORT || 5000;
@@ -60,7 +62,7 @@ const io = new Server(server, {
     }
 });
 
-const wss = new WebSocket.Server({ server });
+// const wss = new WebSocket.Server({ server });
 
 //*Connects to the database
 mongoose.connect(uri)
@@ -71,63 +73,7 @@ mongoose.connect(uri)
         console.log(`Server is running on port:${PORT}`);
     });
     
-    wss.on('connection', (ws) => {
-        console.log('New WebSocket connection');
-    
-        ws.on('message', (message) => {
-            // Forward the message to all clients without parsing
-            wss.clients.forEach((client) => {
-                if (client !== ws && client.readyState === WebSocket.OPEN) {
-                    client.send(message);
-                }
-            });
-        });
-    
-        ws.on('error', (error) => {
-            console.error('WebSocket error:', error);
-        });
-    
-        ws.on('close', () => {
-            console.log('WebSocket connection closed');
-        });
-    });
-                
-    io.on('connection', (socket) => {
-        console.log('Socket.io connected.');
-
-        socket.on('join', (room_id) => {
-            socket.join(room_id);
-            console.log('User joined room: ' + room_id);
-        });
-        
-        socket.on('code_change', async (data) => {
-            socket.to(data.room_id).emit('code_change', data.code);
-            try {
-                await soloRoomModel.updateOne({room_id: data.room_id}, {
-                    code: data.code
-                });
-                console.log(data.code);                    
-            } catch (err) {
-                console.log(err);
-            }
-        });
-
-        socket.on('save_notepad', async (data) => {
-            try {
-                await assignedRoomModel.updateOne({room_id: data.room_id}, {
-                    notes: data.content
-                });
-                
-                console.log(data.content);
-            } catch {
-                console.error('Error saving notepad: ', err);
-            }
-        })
-
-        socket.on('disconnect', () => {
-            console.log('Socket.io disconnected.');
-        });
-    });
+    socketConnect(io);                
 })
 .catch((err) => {
     console.log('Error. Connection failed.', err);
@@ -156,6 +102,55 @@ app.get('/api/get-course-professor' , async (req, res) => {
 });
 
 
+// const connectedUsers = new Map();
+
+// io.on('connection', (socket) => {
+//     console.log('Socket.io connected.');
+
+//     const getAllConnectedUsers = (room_id) => {
+//         return Array.from(connectedUsers.entries())
+//             .filter(([_, user]) => user.room_id === room_id)
+//             .map(([socketId, user]) => ({ socketId, uid: user.uid }));
+//     };
+
+//     socket.on('join', ({ room_id, uid }) => {
+//         connectedUsers.set(socket.id, { uid, room_id });
+//         socket.join(room_id);
+//         const users = getAllConnectedUsers(room_id);
+
+//         io.to(room_id).emit('joined', {
+//             users,
+//             uid,
+//             socketId: socket.id,
+//         });
+//     });
+
+//     socket.on('disconnecting', () => {
+//         const user = connectedUsers.get(socket.id);
+//         if (user) {
+//             const { room_id } = user;
+//             connectedUsers.delete(socket.id);
+//             socket.to(room_id).emit('disconnected', {
+//                 socketId: socket.id,
+//                 uid: user.uid,
+//             });
+//         }
+//     });
+
+//     socket.on('disconnect', () => {
+//         connectedUsers.delete(socket.id);
+//         console.log('Socket.io disconnected.');
+//     });
+// });
+
+/////////////////////////////////////////////////////////////////
+// socketRef.current.on('joined', ({ users, uid, socketId }) => {
+//     console.log('Received joined event with users:', users);
+//     setActiveMembers(users);
+//     setSocketId(socketId);
+//   });
+  
+
 // //! WebSocket code, do not change anything beyond here unless necessary
 // //! WebSocket code, do not change anything beyond here unless necessary
 
@@ -177,7 +172,7 @@ app.get('/api/get-course-professor' , async (req, res) => {
 
 
 // // * map of users active in different rooms identified using socket 
-// const userSocketMap = {};
+// const userPerRoomSocketMap = {};
 
 // //* array of users connected per socket
 // const getAllConnectedUsers = (room_id) => {
@@ -185,7 +180,7 @@ app.get('/api/get-course-professor' , async (req, res) => {
 //         (socketId) => {
 //             return {
 //                 socketId,
-//                 username: userSocketMap[socketId]
+//                 username: userPerRoomSocketMap[socketId]
 //             };
 //         }
 //     );
@@ -196,20 +191,20 @@ app.get('/api/get-course-professor' , async (req, res) => {
 // io.on('connection', (socket) =>  {
 //     console.log(`User connected: ${socket.id}`);
 
-//     //*onJoin function, triggers when user/s join the room
-//     socket.on('join', ({ room_id, username }) => {
-//          userSocketMap[socket.id] = username;
-//          socket.join(room_id);
-//          const users = getAllConnectedUsers(room_id);
+    // //*onJoin function, triggers when user/s join the room
+    // socket.on('join', ({ room_id, username }) => {
+    //      userPerRoomSocketMap[socket.id] = username;
+    //      socket.join(room_id);
+    //      const users = getAllConnectedUsers(room_id);
 
-//          users.forEach(({ socketId }) => {
-//             io.to(socketId).emit('joined', {
-//                 users,
-//                 username,
-//                 socketId: socket.id,
-//             });
-//         }); 
-//     });
+    //      users.forEach(({ socketId }) => {
+    //         io.to(socketId).emit('joined', {
+    //             users,
+    //             username,
+    //             socketId: socket.id,
+    //         });
+    //     }); 
+    // });
 
 
 //     //*onUpdate function, triggers when code in the editor is being changed
@@ -235,10 +230,10 @@ app.get('/api/get-course-professor' , async (req, res) => {
 //         rooms.forEach ((room_id) => {
 //             socket.in(room_id).emit('disconnected', {
 //                 socketId: socket.id,
-//                 username: userSocketMap[socket.id],
+//                 username: userPerRoomSocketMap[socket.id],
 //             });
 //         });
-//         delete userSocketMap[socket.id];
+//         delete userPerRoomSocketMap[socket.id];
 //         socket.leave;
 //     });
 
