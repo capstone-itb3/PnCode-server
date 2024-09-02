@@ -58,6 +58,7 @@ app.use(activityRouter);
 const io = new Server(server, {
     cors: {
         origin: "https://codlin-client.onrender.com",
+        // origin: "http://localhost:5173",
         methods: ["GET", "POST"]
     }
 });
