@@ -25,9 +25,9 @@
   "author": "John Romar Llegue",
   "license": "ISC",
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "express": "^4.19.2",
-    "firebase": "^10.13.0",
     "jsonwebtoken": "^9.0.2",
     "lib0": "^0.2.97",
     "mongodb": "^6.5.0",

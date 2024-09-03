@@ -35,12 +35,6 @@ const roomRouter = require('./routes/room.routes');
 const teamRouter = require('./routes/team.routes');
 const activityRouter = require('./routes/activity.routes');
 
-//*Firebase connection
-const firebaseApp = require('./firebase');
-const { getAuth, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } = require('firebase/auth');
-const { getFirestore, doc, setDoc } = require('firebase/firestore');
-const db = getFirestore(firebaseApp);
-
 //*Socket.io connection
 const socketConnect = require('./socket events/main');
 

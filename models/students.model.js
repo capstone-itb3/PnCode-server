@@ -25,11 +25,6 @@ const notificationSchema = new mongoose.Schema({
 });
 
 const studentSchema = new mongoose.Schema({
-    image: {
-        type: String,
-        required: false,
-        default: null
-    },
     uid: {
         type: String,
         required: true,
@@ -38,6 +33,10 @@ const studentSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
+    },
+    password: {
+        type: String,
+        required: true
     },
     first_name: {
         type: String,

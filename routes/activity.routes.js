@@ -5,10 +5,6 @@ const activityModel = require('../models/activities.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const tokenizer = require('./tokenizer');
 
-const firebaseApp = require('../firebase');
-const { getFirestore, doc, setDoc, collection, query, where, getDocs } = require('firebase/firestore');
-const db = getFirestore(firebaseApp);
-
 const express = require('express');
 const activityRouter = express.Router();
 const { v4: uuid } = require('uuid');
