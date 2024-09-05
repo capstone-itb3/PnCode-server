@@ -38,7 +38,6 @@ roomRouter.post('/api/get-assigned-room-details-for-student/', async (req, res) 
             console.log(team)
             return res.status(400).json({ status: false, message: 'Not a part of this room.'});
         }
-        console.log(39);
         function recordMembers(array1, array2) {
             if (array1.length !== array2.length) {
                 return false;
@@ -51,7 +50,6 @@ roomRouter.post('/api/get-assigned-room-details-for-student/', async (req, res) 
                 recorded_members: team.members 
             }).lean();
         };
-        console.log(52);
         team.members = await Promise.all(team.members.map(setInfo));        
         async function setInfo(member) {
             const user = await studentModel.findOne({ uid: member });
@@ -64,10 +62,9 @@ roomRouter.post('/api/get-assigned-room-details-for-student/', async (req, res) 
             };
         }
         team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
-        console.log(65);
         return res.status(200).json({   status: 'ok', 
                                         room: assigned_room, 
-                                        instructions: activity.instructions, 
+                                        activity: activity, 
                                         members: team.members,
                                         access: access,
                                         message: 'Assigned room details retrieved successfully.' });
@@ -77,8 +74,52 @@ roomRouter.post('/api/get-assigned-room-details-for-student/', async (req, res) 
     }
 });
 
+roomRouter.post('/api/view-output', async (req, res) => {
+    try {
+        let room = await assignedRoomModel.findOne({ room_id: req.body.room_id });
+        if (!room) {
+            room = await soloRoomModel.findOne({ room_id: req.body.room_id });
+            if (!room) {
+                return res.status(400).json({ status: false, message: 'Room does not exist.'});
+            }
+        } 
+
+        const file = room.files.find(file => file.name === req.body.file_name);
+
+        if (!file) {
+            return res.status(400).json({ status: false, message: 'File does not exist.'});
+        }
+
+        if (req.body.position === 'Student') {
+            if (!room.recorded_members.includes(req.body.uid)) {
+                return res.status(400).json({ status: false, message: 'Not a part of this room.'});
+            }
+            
+        } if (req.body.position === 'Professor') {
+            const activity = await activityModel.findOne({ activity_id: room.activity_id });
+            const professor = await professorModel.findOne({ uid: req.body.uid,
+                assigned_courses: { $elemMatch: {
+                                        course_code: activity.course_code,
+                                        sections: activity.section
+                                    }
+                }
+            });
+            if (!professor) {
+                return res.status(400).json({ status: false, message: 'Not a part of this room.'});
+            }
+        }
+
+        return res.status(200).json({   status: 'ok', 
+                                        files: room.files, 
+                                        active: file,
+                                        message: 'Files retrieved successfully.' });
 
 
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: e });
+    }
+});
 
 
 
@@ -144,7 +185,6 @@ roomRouter.get('/api/get-solo-room-details', async (req, res) => {
  
         if (solo_room) {
             return res.status(200).json({ status: 'ok', solo_room: solo_room, message: 'Room found' });
-            console.log('here');
         } else {
             return res.status(400).json({ status: false, message: 'Room not found' });
         }

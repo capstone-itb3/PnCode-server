@@ -12,13 +12,13 @@ const colors = [
     { color: 'purple',    light: '#80008033' },
     { color: 'pink',      light: '#ffc0cb33' },
     { color: 'brown',     light: '#a52a2a33' },
-    { color: 'silver',    light: '#c0c0c033' },
+    { color: 'gray',      light: '#80808033' },
     { color: 'aqua',      light: '#00ffff33' },
     { color: 'lime',      light: '#00ff0033' },
     { color: 'maroon',    light: '#80000033' },
     { color: 'coral',     light: '#ff7f5033' },
     { color: 'chocolate', light: '#d2691e33' },
-  ];
+];
 
   function socketConnect(io) {
     const arrayRooms = [];
@@ -134,17 +134,38 @@ const colors = [
 
         socket.on('update_code', async ({room_id, file_name, code}) => {
             try {
-                const room = await assignedRoomModel.findOneAndUpdate({ room_id: room_id, "files.name": file_name }, { 
+                await assignedRoomModel.findOneAndUpdate({ room_id: room_id, "files.name": file_name }, { 
                     $set: {
-                            "files.$.content": code
-                        }
-                    }, { new: true });
+                        "files.$.content": code
+                    }
+                }, { new: true });
+                
+                // Verify the update
+                const updatedRoom = await assignedRoomModel.findOne({ room_id: room_id });
+                const updatedFile = updatedRoom.files.find(file => file.name === file_name);
+                
+                if (updatedFile && updatedFile.content === code) {
+                    socket.emit('update_result', {
+                        status: 'ok',
+                        message: 'Code updated successfully',
+                    });
+                } else {
+                    socket.emit('update_result', {
+                        status: false,
+                        message: 'Code update not verified',
+                    });
+                }
                 
             } catch (e) {
-                console.log('Socket.io connection error.');
+                socket.emit('update_result', {
+                    status: false,
+                    message: 'Error updating code: ' + e
+                });
+        
+                console.log('update_code Error:' + e);
             }
         })
-
+        
         socket.on('send_line_number', async ({ room_id, file_name, user_id, line }) => {
             try {
                 const editor_id = `${room_id}-${file_name}`;
@@ -165,10 +186,24 @@ const colors = [
         
         socket.on('add_file', async ({ room_id, file_name, file_type }) => {
             try {
+                let content = ''
+                if (file_type === 'html') {
+                    content = '<!DOCTYPE html>'
+                            + '\n<html lang="en">'
+                            + '\n<head>'
+                            + '\n<meta charset="UTF-8" />'
+                            + '\n<meta name="viewport" content="width=device-width, initial-scale=1.0" />'
+                            + '\n<title></title>'
+                            + '\n</head>'
+                            + '\n<body>'
+                            + '\n</body>'
+                            + '\n</html>';
+                }
+                
                 const new_file = {
                     name: `${file_name}.${file_type}`,
                     type: file_type,
-                    content: '',
+                    content: content,
                 }
 
                 await assignedRoomModel.updateOne({ room_id: room_id }, {
@@ -191,14 +226,14 @@ const colors = [
                     notes: data.content
                 });
                 
-                console.log(data.content);
             } catch {
                 console.error('Error saving notepad: ', err);
             }
         })
 
-    });
 
+
+    });
 }
 
 module.exports = socketConnect;
