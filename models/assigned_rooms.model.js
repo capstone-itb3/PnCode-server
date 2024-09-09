@@ -1,20 +1,5 @@
 const mongoose = require('mongoose');
 
-const fileSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true
-    },
-    type: {
-        type: String,
-        required: true
-    },
-    content: {
-        type: String,
-        required: false
-    }
-});
-
 const feedbackSchema = new mongoose.Schema({
     feedback_body: {
         type: String,
@@ -36,7 +21,11 @@ const chatSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-}, { timestamps: true });
+    createdAt: {
+        type: Date,
+        required: true
+    }
+});
 
 const assignedRoomSchema = new mongoose.Schema({
     room_id: {
@@ -60,24 +49,6 @@ const assignedRoomSchema = new mongoose.Schema({
         type: String,
         required: true,
     },  
-    files: {
-        type: [Object],
-        required: false,
-        default: [{
-            name: 'index.html',
-            type: 'html',
-            content: '<!DOCTYPE html>'
-                   + '\n<html lang="en">'
-                   + '\n<head>'
-                   + '\n<meta charset="UTF-8" />'
-                   + '\n<meta name="viewport" content="width=device-width, initial-scale=1.0" />'
-                   + '\n<title></title>'
-                   + '\n</head>'
-                   + '\n<body>'
-                   + '\n</body>'
-                   + '\n</html>'
-        }]
-    },
     notes: {
         type: String,
         required: false,

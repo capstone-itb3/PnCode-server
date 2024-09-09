@@ -3,6 +3,7 @@ const professorModel = require('../models/professors.model');
 const teamModel = require('../models/teams.model');
 const activityModel = require('../models/activities.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
+const fileModel = require('../models/files.model');
 const tokenizer = require('./tokenizer');
 
 const express = require('express');
@@ -84,6 +85,23 @@ activityRouter.post('/api/visit-activity', async (req, res) => {
             activity_id: req.body.activity_id,
             owner_id: team.team_id,
             recorded_members: team.members,
+        });
+        const new_file = await fileModel.create({
+            file_id: uuid().toString(),
+            name: `index.html`,
+            type: 'html',
+            room_id: new_room.room_id,
+            content:    '<!DOCTYPE html>'
+                    + '\n<html lang="en">'
+                    + '\n<head>'
+                    + '\n<meta charset="UTF-8" />'
+                    + '\n<meta name="viewport" content="width=device-width, initial-scale=1.0" />'
+                    + '\n<title></title>'
+                    + '\n</head>'
+                    + '\n<body>'
+                    + '\n</body>'
+                    + '\n</html>',
+            history: []
         });
 
         return res.status(200).json({ status: 'ok', room_id: new_room.room_id, message: 'New room created for the activity' });

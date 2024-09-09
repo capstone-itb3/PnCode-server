@@ -4,6 +4,7 @@ const soloRoomModel = require('../models/solo_rooms.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const teamModel = require('../models/teams.model');
 const activityModel = require('../models/activities.model');
+const fileModel = require('../models/files.model');
 
 const express = require('express');
 const roomRouter = express.Router();
@@ -21,7 +22,6 @@ roomRouter.post('/api/get-assigned-room-details-for-student/', async (req, res) 
         }).lean();
 
         if (!assigned_room) {
-            console.log(assigned_room)
             return res.status(400).json({ status: false, message: 'Room does not exist.'});
         }
 
@@ -35,7 +35,6 @@ roomRouter.post('/api/get-assigned-room-details-for-student/', async (req, res) 
         });
 
         if (!team) {
-            console.log(team)
             return res.status(400).json({ status: false, message: 'Not a part of this room.'});
         }
         function recordMembers(array1, array2) {
@@ -62,8 +61,12 @@ roomRouter.post('/api/get-assigned-room-details-for-student/', async (req, res) 
             };
         }
         team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
+
+        const files = await fileModel.find({ room_id: req.body.room_id });
+
         return res.status(200).json({   status: 'ok', 
-                                        room: assigned_room, 
+                                        room: assigned_room,
+                                        files: files,
                                         activity: activity, 
                                         members: team.members,
                                         access: access,
@@ -76,15 +79,13 @@ roomRouter.post('/api/get-assigned-room-details-for-student/', async (req, res) 
 
 roomRouter.post('/api/view-output', async (req, res) => {
     try {
-        let room = await assignedRoomModel.findOne({ room_id: req.body.room_id });
+        const room = await assignedRoomModel.findOne({ room_id: req.body.room_id });
         if (!room) {
-            room = await soloRoomModel.findOne({ room_id: req.body.room_id });
-            if (!room) {
-                return res.status(400).json({ status: false, message: 'Room does not exist.'});
-            }
-        } 
+            return res.status(400).json({ status: false, message: 'Room does not exist.'});
+        }
 
-        const file = room.files.find(file => file.name === req.body.file_name);
+        const files = await fileModel.find({ room_id: req.body.room_id });
+        const file = files.find(f => f.name === req.body.file_name);
 
         if (!file) {
             return res.status(400).json({ status: false, message: 'File does not exist.'});
@@ -110,10 +111,9 @@ roomRouter.post('/api/view-output', async (req, res) => {
         }
 
         return res.status(200).json({   status: 'ok', 
-                                        files: room.files, 
+                                        files: files, 
                                         active: file,
                                         message: 'Files retrieved successfully.' });
-
 
     } catch (e) {
         console.log(e);
