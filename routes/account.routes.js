@@ -15,9 +15,39 @@ const bcrypt = require('bcryptjs');
 
 const accountRouter = express.Router();
 
+//*GET function to retrieve available sections 
+accountRouter.get('/api/available-sections', async (req, res) => {
+    try {
+        const sections = await sectionModel.find().lean();
+        sections.sort((a, b) => a.year - b.year);
+
+        const data = sections.map(value => {
+            return {
+                year: value.year,
+                program: value.program,
+                sections: value.sections.map(sec => sec.slice(1))
+            };
+        });
+
+        return res.status(200).json({   status: 'ok',
+                                        message: 'Successfully retrieved sections.',
+                                        data: data});
+    } catch (err) {
+        console.log(err);
+        return res.status(500).json({   status: false,
+                                        message: 'Error occured while retrieving sections:' + err});
+    }
+});
+
+
 //*POST function when user registers
 accountRouter.post('/api/register', async (req, res) => {
-    if (req.body.password.length < 8) {
+    const regex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
+
+    if (!regex.test(req.body.email)) {
+        return res.status(400).json({   status: false,
+                                        message: 'Please enter a valid email address.'});
+    } else if (req.body.password.length < 8) {
         return res.status(400).json({   status: false, 
                                         message: 'Password must have more than 8 characters'});
 

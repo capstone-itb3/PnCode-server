@@ -191,7 +191,27 @@ const colors = [
 
         socket.on('get_history', async ({ file_id }) => {
             try {
-                const file = await fileModel.findOne({ file_id });
+                const file = await fileModel.findOne({ file_id }).lean();
+
+                file.contributions = await Promise.all(file.contributions.map(setInfo));
+                async function setInfo(contri) {
+                    const user = await studentModel.findOne({ uid: contri.uid }).lean();
+                    // console.log(user);
+                    return {
+                        uid: user.uid,
+                        first_name: user.first_name,
+                        last_name: user.last_name,
+                        edit_count: contri.edit_count
+                    };
+                }
+                // console.log(file.contributions);
+                
+                file.contributions.sort((a, b) => b.edit_count - a.edit_count);
+
+                for (let his of file.history) {
+                    his.contributions = await Promise.all(his.contributions.map(setInfo));
+                    his.contributions.sort((a, b) => b.edit_count - a.edit_count);
+                }
 
                 socket.emit('get_history_result', {
                     status: 'ok',
@@ -209,8 +229,9 @@ const colors = [
 
         socket.on('add_edit_count', async ({ file_id, user_id }) => {
             try {
-                const file = await fileModel.findOne({ file_id });
-                let updated_file = '';
+                console.log(user_id)
+                const file = await fileModel.findOne({ file_id }).lean();
+                let updated_file = file;
 
                 if (!file.contributions.find(contri => contri.uid === user_id)) {
                     updated_file = await fileModel.findOneAndUpdate({ file_id }, {
@@ -221,14 +242,36 @@ const colors = [
                             }
                         }
                     });
+                    updated_file = updated_file.lean();
                 } else {
-                    updated_file = await fileModel.findOneAndUpdate({ file_id, 'contributions.uid': user_id }, {
-                        $inc: {
-                            'contributions.$.edit_count': 1
+                    updated_file = await fileModel.findOneAndUpdate(
+                        { 
+                            file_id, 
+                            contributions: { $elemMatch: { uid: user_id } }
+                        },
+                        {
+                            $inc: { "contributions.$[elem].edit_count": 1 }
+                        },
+                        {
+                            arrayFilters: [{ "elem.uid": user_id }],
+                            new: true
                         }
-                    });
+                    );       
+                    updated_file = updated_file.lean();             
                 }
-
+                updated_file.contributions = await Promise.all(updated_file.contributions.map(setInfo));
+                async function setInfo(contri) {
+                    const user = await studentModel.findOne({ uid: contri.uid }).lean();
+                    
+                    return {
+                        uid: user.uid,
+                        first_name: user.first_name,
+                        last_name: user.last_name,
+                        edit_count: contri.edit_count
+                    };
+                }
+                updated_file.contributions.sort((a, b) => b.edit_count - a.edit_count);
+    
                 socket.emit('add_edit_count_result', {
                     contributions: updated_file.contributions,
                 });
