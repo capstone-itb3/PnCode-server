@@ -4,7 +4,6 @@ const teamModel = require('../models/teams.model');
 const activityModel = require('../models/activities.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const fileModel = require('../models/files.model');
-const tokenizer = require('./tokenizer');
 
 const express = require('express');
 const activityRouter = express.Router();
@@ -44,7 +43,6 @@ activityRouter.post('/api/create-activity', async (req, res) => {
             instructions: req.body.instructions,
             open_time: req.body.open_time,
             close_time: req.body.close_time,
-            deadline: req.body.deadline
         });
 
         res.status(200).json({ status: 'ok', message: 'Activity created successfully.' });
@@ -55,8 +53,6 @@ activityRouter.post('/api/create-activity', async (req, res) => {
 });
 
 
-//TODO: Add a function to check if the recorded members of the room instead of the team once the
-//TODO: activity deadline has aleady passed 
 activityRouter.post('/api/visit-activity', async (req, res) => {
     try {
         const team = await teamModel.findOne({
@@ -147,7 +143,6 @@ activityRouter.post('/api/update-dates', async (req, res) => {
         await activityModel.updateOne({ activity_id: req.body.activity_id }, {
             open_time: req.body.open_time,
             close_time: req.body.close_time,
-            deadline: req.body.deadline
         });
 
         return res.status(200).json({ status: 'ok', message: 'Activity is updated successfully.' });

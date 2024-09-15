@@ -5,7 +5,7 @@ const assignedRoomModel = require('../models/assigned_rooms.model');
 const teamModel = require('../models/teams.model');
 const activityModel = require('../models/activities.model');
 const fileModel = require('../models/files.model');
-const { setTeamInfo } = require('./setInfo');
+const { setTeamInfo } = require('../utils/setInfo');
 
 const express = require('express');
 const roomRouter = express.Router();
@@ -13,8 +13,8 @@ const { v4: uuid } = require('uuid');
 
 //*POST function to get assigned room details for students
 //TODO 1:   Apply activity's access timeframes
-//TODO 2.1: Apply activity's deadline 
-//TODO 2.2: Add a function to check if the recorded members of the room instead of the team
+// // TODO 2.1: Apply activity's deadline 
+// // TODO 2.2: Add a function to check if the recorded members of the room instead of the team
 roomRouter.post('/api/get-assigned-room-details/', async (req, res) => {
     try {
         let access = 'write';

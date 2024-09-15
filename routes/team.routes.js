@@ -2,7 +2,7 @@ const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 const activityModel = require('../models/activities.model');
 const teamModel = require('../models/teams.model');
-const { setTeamInfo } = require('./setInfo');
+const { setTeamInfo } = require('../utils/setInfo');
 
 const express = require('express');
 const teamRouter = express.Router();

@@ -2,7 +2,7 @@ const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 const sectionModel = require('../models/sections.model');
 const courseModel = require('../models/courses.model');
-const { tokenizeStudent, tokenizeProfessor } = require('./tokenizer');
+const { tokenizeStudent, tokenizeProfessor } = require('../utils/tokenizer');
 const { client }  = require('../database');
 
 let customAlphabet;

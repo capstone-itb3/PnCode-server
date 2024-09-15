@@ -32,11 +32,6 @@ const activitySchema = new mongoose.Schema({
         required: false,
         default: null
     },
-    deadline: {
-        type: Date,
-        required: false,
-        default: null
-    }
 }, { timestamps: true, collection: 'activities' });
 
 const activityModel = mongoose.model('activities', activitySchema);

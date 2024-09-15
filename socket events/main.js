@@ -5,8 +5,8 @@ const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const fileModel = require('../models/files.model');
-const { tokenizeStudent, tokenizeProfessor } = require('../routes/tokenizer');
-const { setContributionInfo } = require('../routes/setInfo');
+const { tokenizeStudent, tokenizeProfessor } = require('../utils/tokenizer');
+const { setContributionInfo, setMessageInfo, setFeedbackInfo } = require('../utils/setInfo');
 
 const colors = [  
     { color: 'red',       light: '#ff000033' },
@@ -395,7 +395,7 @@ function socketConnect(io) {
                     if (hasUsersEditing || !onlyUserIsEditing) {
                         return socket.emit('file_deleted', {
                             status: false,
-                            message: 'File is being edited by another user(s).'
+                            message: 'Removal denied. Another user is currently on the file.'
                         });
                     }
                 }
@@ -407,8 +407,6 @@ function socketConnect(io) {
                     file_id: file_id,
                     message: 'File deleted'
                 });
-
-                
 
             } catch (e) {
                 socket.emit('file_deleted', {
@@ -446,18 +444,7 @@ function socketConnect(io) {
             try {
                 const room = await assignedRoomModel.findOne({ room_id: room_id }).lean();
 
-                room.chat = await Promise.all(room.chat.map(setInfo));
-                async function setInfo(msg) {
-                    const user = await studentModel.findOne({ uid: msg.sender_uid });
-
-                    return {
-                        sender_uid: user.uid,
-                        first_name: user.first_name,
-                        last_name: user.last_name,
-                        chat_body: msg.chat_body,
-                        createdAt: msg.createdAt
-                    };
-                }
+                room.chat = await Promise.all(room.chat.map(setMessageInfo));
 
                 socket.emit('messages_loaded', { 
                     chat_data: room.chat 
@@ -488,6 +475,78 @@ function socketConnect(io) {
             
             } catch (e) {
                 console.log('send_message Error:' + e);
+            }
+        });
+
+        socket.on('load_feedback', async ({ room_id }) => {
+            try {
+                const room = await assignedRoomModel.findOne({ room_id: room_id }).lean();
+                
+                room.feedback = await Promise.all(room.feedback.map(setFeedbackInfo));
+                room.feedback.sort((a, b) => b.createdAt - a.createdAt);
+
+                socket.emit('feedback_loaded', {
+                    feedback: room.feedback,
+                });
+            } catch (e) {
+                console.log('load_feedback Error:' + e);
+            }
+        });
+
+        socket.on('submit_feedback', async ({ room_id, activity_id, user_id, new_feedback, feedback_range }) => {
+            try {
+                const user = await professorModel.findOne({ uid: user_id });
+                if (!user) {
+                    return socket.emit('submit_feedback_result', {
+                        status: false,
+                        message: 'User not found'
+                    });
+                }
+
+                let feed = {
+                    feedback_body: new_feedback,
+                    professor_uid: user_id,
+                    createdAt: Date.now(),
+                };
+
+                if (feedback_range === 'This room') {
+                    await assignedRoomModel.updateOne({ room_id }, {
+                        $push: { 
+                            feedback: feed
+                        }
+                    });
+
+                    feed = await setFeedbackInfo(feed);
+
+                    io.to(room_id).emit('submit_feedback_result', {
+                        status: 'ok',
+                        feedback: feed,
+                        message: 'Feedback submitted'
+                    });
+
+                } else if (feedback_range === 'All rooms') {
+                    const rooms = await assignedRoomModel.find({ activity_id }).lean();
+
+                    await assignedRoomModel.updateMany({ activity_id }, {
+                        $push: {
+                            feedback: feed
+                        }
+                    });
+
+                    feed = await setFeedbackInfo(feed);
+
+
+                    rooms.forEach(room => {
+                        io.to(room.room_id).emit('submit_feedback_result', {
+                            status: 'ok',
+                            feedback: feed,
+                            message: 'Feedback submitted'
+                        });
+                    });
+                }
+
+            } catch (e) {
+                console.log('submit_feedback Error:' + e);
             }
         });
     });
