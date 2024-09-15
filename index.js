@@ -23,6 +23,7 @@ const jwt = require('jsonwebtoken');
 //*Models
 const studentModel = require('./models/students.model');
 const professorModel = require('./models/professors.model');
+const courseModel = require('./models/courses.model');
 const sectionModel = require('./models/sections.model');
 const soloRoomModel = require('./models/solo_rooms.model');
 const assignedRoomModel = require('./models/assigned_rooms.model');
@@ -79,8 +80,7 @@ const io = new Server(server, {
 });
 
 //*Connects to the database
-mongoose.connect(uri)
-.then(() => {
+mongoose.connect(uri).then(() => {
     console.log('Connected to database.');
     
     server.listen(PORT, () => {
@@ -88,12 +88,11 @@ mongoose.connect(uri)
     });
     
     socketConnect(io);                
-})
-.catch((err) => {
+}).catch((err) => {
     console.log('Error. Connection failed.', err);
 });
 
-app.get('/api/get-course-professor' , async (req, res) => {
+app.get('/api/get-course-details' , async (req, res) => {
     try {
         const professor = await professorModel.findOne({
             assigned_courses : {
@@ -104,9 +103,18 @@ app.get('/api/get-course-professor' , async (req, res) => {
             }
         });
 
-        res.status(200).json({  status: 'ok',
-                                name: professor ? `${professor.first_name} ${professor.last_name}` : 'TBA',
-                                message: 'Successfully retrieved professor name.' });
+        const course = await courseModel.findOne({
+            course_code: req.query.course_code
+        });
+
+        if (!course) {
+            return res.status(403).json({ status: false, message: 'Course not found.' });
+        }
+
+        return res.status(200).json({   status: 'ok',
+                                        course_title: course.course_title,
+                                        professor: professor ? `${professor.first_name} ${professor.last_name}` : 'TBA',
+                                        message: 'Successfully retrieved professor name.' });
     } catch (e) {
         console.log(e);
         res.status(500).json({  status: false, 

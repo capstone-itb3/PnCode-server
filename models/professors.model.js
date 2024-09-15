@@ -64,7 +64,7 @@ const professorSchema = new mongoose.Schema({
     preferences: {
         type: Object,
         required: false,
-        default: {}
+        default: { theme: 'dark' }
     },
 }, { timestamps: true, collection: 'professors' });
 

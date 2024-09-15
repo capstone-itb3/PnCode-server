@@ -2,8 +2,11 @@ const { v4: uuid } = require('uuid');
 const random = require('lib0/random');
 
 const studentModel = require('../models/students.model');
+const professorModel = require('../models/professors.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const fileModel = require('../models/files.model');
+const { tokenizeStudent, tokenizeProfessor } = require('../routes/tokenizer');
+const { setContributionInfo } = require('../routes/setInfo');
 
 const colors = [  
     { color: 'red',       light: '#ff000033' },
@@ -12,9 +15,9 @@ const colors = [
     { color: 'green',     light: '#00800033' },
     { color: 'blue',      light: '#0000ff33' },
     { color: 'purple',    light: '#80008033' },
-    { color: 'pink',      light: '#ffc0cb33' },
+    { color: 'hotpink',   light: '#ff69b433' },
     { color: 'brown',     light: '#a52a2a33' },
-    { color: 'gray',      light: '#80808033' },
+    { color: 'teal',      light: '#00808033' },
     { color: 'aqua',      light: '#00ffff33' },
     { color: 'lime',      light: '#00ff0033' },
     { color: 'maroon',    light: '#80000033' },
@@ -22,107 +25,128 @@ const colors = [
     { color: 'chocolate', light: '#d2691e33' },
 ];
 
-  function socketConnect(io) {
-    const arrayRooms = [];
-    const arrayEditors = [];
+function socketConnect(io) {
+    let arrayRooms = [];
+    let arrayEditors = [];
 
-    function findRoom(roomId) {
-        return arrayRooms.find(room => room.id === roomId);
+    function findRoom(room_id) {
+        return arrayRooms.find(room => room.id === room_id);
     }
 
-    function findEditor(editorId) {
-        return arrayEditors.find(editor => editor.id === editorId);
+    function findEditor(editor_id) {
+        return arrayEditors.find(editor => editor.id === editor_id);
     }
 
     function emitRoomUsers(room) {
-        io.to(room.id).emit('room_users_updated', room.users);
+        io.to(room.id).emit('room_users_updated', { users: room.users });
+
     }
 
     function emitEditorUsers(editor) {
-        io.to(editor.id).emit('editor_users_updated', editor.users);
+        io.to(editor.id).emit('editor_users_updated', { users: editor.users });
     }
 
     io.on('connection', (socket) => {
         console.log('Socket.io connected.');
 
-        socket.on('join_room', async ({ room_id, user_id }) => {
+        socket.on('join_room', async ({ room_id, user_id, position }) => {
             try {
                 let room = findRoom(room_id);
                 if (!room) {
                     room = { id: room_id, users: [] };
                     arrayRooms.push(room);
                 }
+        
                 socket.user_id = user_id;
                 
                 if (!room.users.find(user => user.user_id === user_id)) {
-                    socket.join(room_id);
-
                     let cursor;
-                    do {
-                        cursor = colors[random.uint32() % colors.length];
-                    } while (room.users.find(user => user.cursor.color === cursor.color) 
-                             && room.users.length <= colors.length);
 
+                    if (position === 'Student') {
+                        do {
+                            cursor = colors[random.uint32() % colors.length];
+                        } while (room.users.find(user => user.cursor.color === cursor.color) && 
+                                 room.users.length < colors.length);
+
+                    } else if (position === 'Professor') {
+                        cursor = { color: 'gray', light: '#80808033' };
+                    }
+        
                     room.users.push({ user_id, cursor });
                 }
+                
+                socket.join(room_id);
                 emitRoomUsers(room);
             } catch (e) {
-                console.log('join_room Error' + e);
+                console.log('join_room Error: ' + e);
             }
         });
-
-        let currentEditor = null;
-
+        
         socket.on('join_editor', async ({ file_id, user_id }) => {
             try {
                 const editor_id = file_id;
-
-                if (currentEditor) {
-                    const oldEditor = findEditor(currentEditor);
-                    if (oldEditor) {
-                        oldEditor.users = oldEditor.users.filter(user => user.user_id !== socket.user_id);
-                        socket.leave(currentEditor);
-                        emitEditorUsers(oldEditor);
+        
+                arrayEditors.forEach(editor => {
+                    if (editor.id !== editor_id) {
+                        socket.leave(editor.id);
                     }
+                });
+        
+                arrayEditors = arrayEditors.map((editor) => ({
+                    ...editor,
+                    users: editor.users.filter(user => user.user_id !== user_id)
+                }));
+                
+                if (!findEditor(editor_id)) {
+                    arrayEditors.push({ id: editor_id, users: [] });
                 }
-  
-                let editor = findEditor(editor_id);
-                if (!editor) {
-                    editor = { id: editor_id, users: [] };
-                    arrayEditors.push(editor);
-                }
-
+        
+                arrayEditors = arrayEditors.map(editor => {
+                    if (editor.id === editor_id) {
+                        editor.users.push({ user_id, line: 0 });
+                    }
+                    return editor;
+                });
+        
                 socket.join(editor_id);
-                editor.users.push({ user_id, line: 0 });
-                currentEditor = editor_id;
-
-                emitEditorUsers(editor);
+                emitEditorUsers(findEditor(editor_id));
+        
             } catch (e) {
                 console.log('join_editor Error' + e);
             }
         });
-
+        
         socket.on('disconnecting', () => {
             try {
                 const rooms = Array.from(socket.rooms);
+        
+                for (let id of rooms) {
 
-                for (let roomId of rooms) {
-                    const room = findRoom(roomId);
-                    if (room) {
+                    if (findRoom(id)) {
+                        const room = findRoom(id);
                         room.users = room.users.filter(user => user.user_id !== socket.user_id);
+
                         emitRoomUsers(room);
+                        socket.leave(id);
                     }
-                    const editor = findEditor(roomId);
+
+                    const editor = findEditor(id);
                     if (editor) {
                         editor.users = editor.users.filter(user => user.user_id !== socket.user_id);
+
                         emitEditorUsers(editor);
+                        socket.leave(id);
                     }
                 }
+
+                arrayRooms = arrayRooms.filter(room => room.users.length > 0);
+                arrayEditors = arrayEditors.filter(editor => editor.users.length > 0);
+
             } catch (e) {
                 console.log('disconnecting Error' + e);
             }
         });
-
+                
         socket.on('find_file', async ({ room_id, file_id }) => {
             try {
                 const file = await fileModel.findOne({ file_id, room_id });
@@ -135,11 +159,40 @@ const colors = [
             }
         })
 
+        socket.on('preferred_theme', async ({ theme, user }) => {
+            try {
+                let token;
+                if (user.position === 'Student') {
+                    const current_user = await studentModel.findOneAndUpdate({ uid: user.uid }, { 
+                        $set: { preferences:  { theme: theme } }
+                    }, { new: true });
+    
+                    token = tokenizeStudent(current_user);
+                    
+                } else if (user.position === 'Professor') {
+                    const current_user = await professorModel.findOneAndUpdate({ uid: user.uid }, {
+                        $set: { preferences:  { theme: theme } }
+                    }, { new: true });
+    
+                    token = tokenizeProfessor(current_user);
+                }
+    
+                socket.emit('update_token', {
+                    status: 'ok',
+                    token: token,
+                    message: 'Preferred theme updated successfully'
+                });
+            } catch (e) {
+                console.log('preferred_theme Error: ' + e);
+            }
+        });
+
         socket.on('update_code', async ({file_id, user_id, code, line, store_history}) => {
             try {
                 let file = await fileModel.findOneAndUpdate({ file_id },{ 
                     $set: { content: code  } 
                 }, { new: true });
+
 
                 if (file.content === code) {
                     socket.emit('update_result', {
@@ -148,7 +201,7 @@ const colors = [
                     });
                     
                     if (store_history) {
-                        const no_record = file.history.length === 0;
+                        const no_record = file.history.length === 0 && file.contributions.length !== 0;
                         
                         const same_record = !no_record ? 
                                             file.history[file.history.length - 1]?.content === code 
@@ -158,20 +211,20 @@ const colors = [
                                                  : false;
 
                          if (no_record || (same_record || closer_timestamp) !== true) {
+
                             file = await fileModel.findOneAndUpdate({ file_id }, {
                                 $push: {
-                                    history: { content: code, contributions: file.contributions }
+                                    history: { 
+                                        content: code, 
+                                        contributions: file.contributions
+                                    }
                                 }
                             }, { new: true });
-                        }
-                        console.log(no_record);
-                        console.log(same_record);
-                        console.log(closer_timestamp);
 
-                        io.in(file_id).emit('reupdate_history', {
-                            history: file.history,
-                            contributions: file.contributions
-                        });
+                            io.in(file_id).emit('reupdate_history', {
+                                status: 'ok'
+                            });
+                        }
                     }
                 } else {
                     socket.emit('update_result', {
@@ -193,23 +246,11 @@ const colors = [
             try {
                 const file = await fileModel.findOne({ file_id }).lean();
 
-                file.contributions = await Promise.all(file.contributions.map(setInfo));
-                async function setInfo(contri) {
-                    const user = await studentModel.findOne({ uid: contri.uid }).lean();
-                    // console.log(user);
-                    return {
-                        uid: user.uid,
-                        first_name: user.first_name,
-                        last_name: user.last_name,
-                        edit_count: contri.edit_count
-                    };
-                }
-                // console.log(file.contributions);
-                
+                file.contributions = await Promise.all(file.contributions.map(setContributionInfo));                
                 file.contributions.sort((a, b) => b.edit_count - a.edit_count);
 
                 for (let his of file.history) {
-                    his.contributions = await Promise.all(his.contributions.map(setInfo));
+                    his.contributions = await Promise.all(his.contributions.map(setContributionInfo));
                     his.contributions.sort((a, b) => b.edit_count - a.edit_count);
                 }
 
@@ -241,38 +282,22 @@ const colors = [
                                 edit_count: 1
                             }
                         }
-                    });
-                    updated_file = updated_file.lean();
-                } else {
-                    updated_file = await fileModel.findOneAndUpdate(
-                        { 
-                            file_id, 
-                            contributions: { $elemMatch: { uid: user_id } }
-                        },
-                        {
-                            $inc: { "contributions.$[elem].edit_count": 1 }
-                        },
-                        {
-                            arrayFilters: [{ "elem.uid": user_id }],
-                            new: true
-                        }
-                    );       
-                    updated_file = updated_file.lean();             
-                }
-                updated_file.contributions = await Promise.all(updated_file.contributions.map(setInfo));
-                async function setInfo(contri) {
-                    const user = await studentModel.findOne({ uid: contri.uid }).lean();
+                    }, { new: true }).lean();
                     
-                    return {
-                        uid: user.uid,
-                        first_name: user.first_name,
-                        last_name: user.last_name,
-                        edit_count: contri.edit_count
-                    };
+                } else {
+                    updated_file = await fileModel.findOneAndUpdate({ file_id, contributions: { 
+                                                                        $elemMatch: { uid: user_id } 
+                                                                    }}, { 
+                        $inc: { "contributions.$[elem].edit_count": 1 } 
+
+                    }, { arrayFilters: [{ "elem.uid": user_id }], new: true }
+                    ).lean();       
                 }
+
+                updated_file.contributions = await Promise.all(updated_file.contributions.map(setContributionInfo));
                 updated_file.contributions.sort((a, b) => b.edit_count - a.edit_count);
     
-                socket.emit('add_edit_count_result', {
+                io.to(file_id).emit('add_edit_count_result', {
                     contributions: updated_file.contributions,
                 });
                 
@@ -321,7 +346,6 @@ const colors = [
                     type: file_type,
                     room_id: room_id,
                     content: content,
-                    history: []
                 }
                 
                 const already_exists = await fileModel.findOne({ 
@@ -333,7 +357,7 @@ const colors = [
                     socket.emit('file_added', {
                         status: false,
                         file: null,
-                        message: 'Duplicate'
+                        message: 'File already exists.'
                     });
 
                 } else {
@@ -350,23 +374,74 @@ const colors = [
                 socket.emit('file_added', {
                     status: false,
                     file: null,
-                    message: 'Error'
+                    message: 'Error adding file.'
                 });
                 console.log('Socket.io error:' + e);
             }            
-        })
+        });
 
-        socket.on('save_notepad', async (data) => {
+        socket.on('delete_file', async ({ file_id, room_id, user_id }) => {
             try {
-                await assignedRoomModel.updateOne({room_id: data.room_id}, {
-                    notes: data.content
+                const editor = findEditor(file_id);
+                console.log('editor', editor);
+
+                if (editor && editor.users.length > 0) {
+                    const hasUsersEditing = editor.users.length >= 2;
+                    const onlyUserIsEditing = editor.users.length === 1 && editor.users.every(user => user.user_id === user_id);
+
+                    console.log('hasUsersEditing', hasUsersEditing);
+                    console.log('onlyUserIsEditing', onlyUserIsEditing);
+
+                    if (hasUsersEditing || !onlyUserIsEditing) {
+                        return socket.emit('file_deleted', {
+                            status: false,
+                            message: 'File is being edited by another user(s).'
+                        });
+                    }
+                }
+
+                await fileModel.deleteOne({ file_id });
+                        
+                io.to(room_id).emit('file_deleted', {
+                    status: 'ok',
+                    file_id: file_id,
+                    message: 'File deleted'
                 });
+
                 
+
+            } catch (e) {
+                socket.emit('file_deleted', {
+                    status: false,
+                    message: 'Error deleting file.'
+                });
+
+                console.log('delete_file Error:' + e);
+            }
+        });
+
+        socket.on('save_notepad', async ({ room_id, content }) => {
+            try {
+                await assignedRoomModel.updateOne({room_id: room_id}, {
+                    notes: content
+                });
             } catch {
                 console.error('Error saving notepad: ', err);
             }
-        })
+        });
+    
+        socket.on('load_notepad', async ({ room_id }) => {
+            try {
+                const room = await assignedRoomModel.findOne({ room_id: room_id }).lean();
 
+                socket.emit('notepad_loaded', {
+                    notes: room.notes,
+                });
+                
+            } catch (e) {
+                console.log('load_notepad Error' + e);
+            }
+        });
         socket.on('load_messages', async ({ room_id }) => {
             try {
                 const room = await assignedRoomModel.findOne({ room_id: room_id }).lean();

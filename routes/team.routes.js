@@ -2,7 +2,7 @@ const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 const activityModel = require('../models/activities.model');
 const teamModel = require('../models/teams.model');
-const tokenizer = require('./tokenizer');
+const { setTeamInfo } = require('./setInfo');
 
 const express = require('express');
 const teamRouter = express.Router();
@@ -13,18 +13,7 @@ teamRouter.get('/api/get-teams', async (req, res) => {
         const teams = await teamModel.find({ course: req.query.course, section: req.query.section });
 
         for (let i = 0; i < teams.length; i++) {
-            teams[i].members = await Promise.all(teams[i].members.map(setInfo));
-        }
-
-        async function setInfo(member) {
-            const user = await studentModel.findOne({ uid: member });
-            
-            return {
-                image: user.image,
-                uid: user.uid,
-                first_name: user.first_name,
-                last_name: user.last_name
-            };
+            teams[i].members = await Promise.all(teams[i].members.map(setTeamInfo));
         }
         
         return res.status(200).json({ status: 'ok', teams: teams });
@@ -109,17 +98,7 @@ teamRouter.post('/api/get-team-details', async (req, res) => {
                 }
             }
 
-            team.members = await Promise.all(team.members.map(setInfo));
-            async function setInfo(member) {
-                const user = await studentModel.findOne({ uid: member });
-                
-                return {
-                    image: user.image,
-                    uid: user.uid,
-                    first_name: user.first_name,
-                    last_name: user.last_name
-                };
-            }
+            team.members = await Promise.all(team.members.map(setTeamInfo));
             team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
 
             return res.status(200).json({ status: 'ok', team: team, access: access });

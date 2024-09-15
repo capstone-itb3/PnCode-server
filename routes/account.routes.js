@@ -134,19 +134,8 @@ accountRouter.post('/api/login', async (req, res) => {
             return res.status(400).json({  status: false,
                                             message: 'Email or password is incorrect.'});
         }
-        
-        const course_list = await Promise.all(user_data.enrolled_courses.map(setInfo));
-
-        async function setInfo(course) {
-            const info = await courseModel.findOne({ course_code: course.course_code });
-            return {
-                course_code: info.course_code,
-                course_title: info.course_title,
-                section: course.section
-            };
-        }
-        
-        const token = tokenizeStudent(user_data, course_list);
+                
+        const token = tokenizeStudent(user_data);
 
         return res.status(200).json({   status: 'ok', 
                                         token: token,
@@ -173,18 +162,7 @@ accountRouter.post('/api/login/professor', async (req, res) => {
                                             message: 'Email or password is incorrect.'});
         }
 
-        const course_list = await Promise.all(user_data.assigned_courses.map(setInfo));
-
-        async function setInfo(course) {
-            const info = await courseModel.findOne({ course_code: course.course_code });
-            return {
-                course_code: info.course_code,
-                course_title: info.course_title,
-                sections: course.sections
-            };
-        }
-
-        const token = tokenizeProfessor(user_data, course_list);
+        const token = tokenizeProfessor(user_data);
 
         return res.status(200).json({   status: 'ok', 
                                         token: token, 

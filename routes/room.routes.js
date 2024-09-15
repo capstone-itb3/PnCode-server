@@ -5,6 +5,7 @@ const assignedRoomModel = require('../models/assigned_rooms.model');
 const teamModel = require('../models/teams.model');
 const activityModel = require('../models/activities.model');
 const fileModel = require('../models/files.model');
+const { setTeamInfo } = require('./setInfo');
 
 const express = require('express');
 const roomRouter = express.Router();
@@ -14,52 +15,52 @@ const { v4: uuid } = require('uuid');
 //TODO 1:   Apply activity's access timeframes
 //TODO 2.1: Apply activity's deadline 
 //TODO 2.2: Add a function to check if the recorded members of the room instead of the team
-roomRouter.post('/api/get-assigned-room-details-for-student/', async (req, res) => {
+roomRouter.post('/api/get-assigned-room-details/', async (req, res) => {
     try {
         let access = 'write';
-        let assigned_room = await assignedRoomModel.findOne({ 
-            room_id: req.body.room_id 
-        }).lean();
+        let assigned_room = await assignedRoomModel.findOne({ room_id: req.body.room_id }).lean();
 
         if (!assigned_room) {
             return res.status(400).json({ status: false, message: 'Room does not exist.'});
         }
 
-        const activity = await activityModel.findOne({ 
-            activity_id: assigned_room.activity_id 
-        });
+        const activity = await activityModel.findOne({ activity_id: assigned_room.activity_id });
 
-        const team = await teamModel.findOne({ 
-            team_id: assigned_room.owner_id, 
-            members: req.body.uid 
-        });
 
-        if (!team) {
-            return res.status(400).json({ status: false, message: 'Not a part of this room.'});
+        const team = await teamModel.findOne({ team_id: assigned_room.owner_id }).lean();
+        if (!team || !activity) {
+            return res.status(400).json({ status: false, message: 'Room does not exist.'});
         }
-        function recordMembers(array1, array2) {
-            if (array1.length !== array2.length) {
+
+        if (req.body.user.position === 'Student') {
+            if (!team.members.includes(req.body.user.uid)) {
+                return res.status(400).json({ status: false, message: 'Not a part of this room.'});
+            }
+
+        } else if (req.body.user.position === 'Professor') {
+            const isAssigned = (c) => {
+                return c.course_code === activity.course_code && c.sections.includes(activity.section);
+            };
+
+            if (!req.body.user.assigned_courses.find(isAssigned)) {
+                return res.status(400).json({ status: false, message: 'Not a part of this room.'});
+            }
+        }
+
+        function compareRecorded(current, recorded) {
+            if (current.length !== recorded.length) {
                 return false;
             }
-            return array1.slice().sort().every((member, index) => member === array2.slice().sort()[index]);
+            return current.slice().sort().every((member, index) => member === recorded.slice().sort()[index]);
         }
 
-        if (!recordMembers(team.members, assigned_room.recorded_members)) {
+        if (!compareRecorded(team.members, assigned_room.recorded_members)) {
             assigned_room = assignedRoomModel.findOneAndUpdate({ room_id: req.body.room_id }, { 
                 recorded_members: team.members 
-            }).lean();
+            }, { new: true }).lean();
         };
-        team.members = await Promise.all(team.members.map(setInfo));        
-        async function setInfo(member) {
-            const user = await studentModel.findOne({ uid: member });
-            
-            return {
-                image: user.image,
-                uid: user.uid,
-                first_name: user.first_name,
-                last_name: user.last_name
-            };
-        }
+
+        team.members = await Promise.all(team.members.map(setTeamInfo));
         team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
 
         const files = await fileModel.find({ room_id: req.body.room_id });
