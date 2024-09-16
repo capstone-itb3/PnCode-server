@@ -163,19 +163,17 @@ teamRouter.post('/api/add-member', async (req, res) => {
 
 teamRouter.post('/api/remove-member', async (req, res) => {
     try {
-        const hasOngoingAct = await checkOngoingActivity(req.body.course, req.body.section, res)
+        // const hasOngoingAct = await checkOngoingActivity(req.body.course, req.body.section, res)
 
-        if (hasOngoingAct) {
-            return res.status(400).json({ status: false, message: 'You can\'t remove a member because there is an ongoing activity.' });
-        } else {
+        // if (hasOngoingAct) {
+        //     return res.status(400).json({ status: false, message: 'You can\'t remove a member because there is an ongoing activity.' });
+        // } else {
             await teamModel.updateOne({ team_id: req.body.team_id }, 
                 { $pull: { members: req.body.student_uid }
             });
 
-        
-
             return res.status(200).json({ status: 'ok', message: 'Student is removed from the  team.' });
-        }
+        // }
     } catch(e) {
         res.status(500).json({ status: false, message: 'Error in removing a member.' });
         console.log(e)
@@ -184,41 +182,41 @@ teamRouter.post('/api/remove-member', async (req, res) => {
 
 teamRouter.post('/api/delete-team', async (req, res) => {
     try {
-        const hasOngoingAct = await checkOngoingActivity(req.body.course, req.body.section, res);
+        // const hasOngoingAct = await checkOngoingActivity(req.body.course, req.body.section, res);
 
-        if (hasOngoingAct) {
-            return res.status(400).json({ status: false, message: 'You can\'t remove a team because there is an ongoing activity.' });
+        // if (hasOngoingAct) {
+        //     return res.status(400).json({ status: false, message: 'You can\'t remove a team because there is an ongoing activity.' });
 
-        } else {
+        // } else {
             await teamModel.deleteOne({ team_id: req.body.team_id });
-
+            
             return res.status(200).json({ status: 'ok', message: 'Team deleted successfully.' });
-        }
+        // }
     } catch (e) {
         res.status(500).json({ status: false, message: 'Error in deleting team.' });
         console.log(e);
     }
 });
 
-async function checkOngoingActivity(course, section, res) {
-    try {
-        const activities = await activityModel.find({
-            course_code: course,
-            section: section,
-        });   
+// async function checkOngoingActivity(course, section, res) {
+//     try {
+//         const activities = await activityModel.find({
+//             course_code: course,
+//             section: section,
+//         });   
         
-        for (let act of activities) {
-            if (new Date(act.deadline) >= Date.now()) {
+//         for (let act of activities) {
+//             if (new Date(act.deadline) >= Date.now()) {
          
-                return true;
-            }
-        }
-        return false;
+//                 return true;
+//             }
+//         }
+//         return false;
 
-    } catch (e) {
-        res.status(500).json({ status: false, message: 'Internal Server Error.' });
-        console.log(e);
-    }
-}
+//     } catch (e) {
+//         res.status(500).json({ status: false, message: 'Internal Server Error.' });
+//         console.log(e);
+//     }
+// }
 
 module.exports = teamRouter;

@@ -158,10 +158,14 @@ activityRouter.post('/api/delete-activity', async (req, res) => {
             activity_id: req.body.activity_id
         });
 
-        await assignedRoomModel.deleteMany({
-            activity_id: req.body.activity_id
-        });
+        const rooms_related = await assignedRoomModel.find({ activity_id: req.body.activity_id }).lean();
 
+        await Promise.all(rooms_related.map(deleteRooms));
+        async function deleteRooms(room) {
+            await fileModel.deleteMany({ room_id: room.room_id });
+            await assignedRoomModel.deleteOne({ room_id: room.room_id });
+        }
+        
         return res.status(200).json({ status: 'ok', message: 'Activity deleted successfully.' });
     } catch (e) {
         console.log(e);
