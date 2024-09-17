@@ -18,10 +18,14 @@ const soloRoomSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    code: {
-        type: String,
+    files: {
+        type: [Object],
         required: false,
-        default: ''
+        default: [
+            { file_id: 'html_file_solo',    name: 'index.html',   type: 'html',   content: '' },
+            { file_id: 'css_file_solo',     name: 'style.css',    type: 'css',    content: '' },
+            { file_id: 'js_file_solo',      name: 'script.js',    type: 'js',     content: '' },
+        ]
     }
 }, { timestamps : true, collection : 'solo-rooms' });
 

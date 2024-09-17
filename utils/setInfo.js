@@ -2,7 +2,7 @@ const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 
 async function setTeamInfo(member) {
-    const user = await studentModel.findOne({ uid: member });
+    const user = await studentModel.findOne({ uid: member }).lean();
     
     return {
         uid: user.uid,

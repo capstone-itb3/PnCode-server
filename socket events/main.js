@@ -4,6 +4,7 @@ const random = require('lib0/random');
 const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
+const soloRoomModel = require('../models/solo_rooms.model');
 const fileModel = require('../models/files.model');
 const { tokenizeStudent, tokenizeProfessor } = require('../utils/tokenizer');
 const { setContributionInfo, setMessageInfo, setFeedbackInfo } = require('../utils/setInfo');
@@ -149,7 +150,7 @@ function socketConnect(io) {
                 
         socket.on('find_file', async ({ room_id, file_id }) => {
             try {
-                const file = await fileModel.findOne({ file_id, room_id });
+                const file = await fileModel.findOne({ file_id, room_id }).lean();
 
                 socket.emit('found_file', {
                     file
@@ -165,7 +166,7 @@ function socketConnect(io) {
                 if (user.position === 'Student') {
                     const current_user = await studentModel.findOneAndUpdate({ uid: user.uid }, { 
                         $set: { preferences:  { theme: theme } }
-                    }, { new: true });
+                    }, { new: true }).lean();
 
                     
     
@@ -174,7 +175,7 @@ function socketConnect(io) {
                 } else if (user.position === 'Professor') {
                     const current_user = await professorModel.findOneAndUpdate({ uid: user.uid }, {
                         $set: { preferences:  { theme: theme } }
-                    }, { new: true });
+                    }, { new: true }).lean();
     
                     token = tokenizeProfessor(current_user);
                 }
@@ -193,7 +194,7 @@ function socketConnect(io) {
             try {
                 let file = await fileModel.findOneAndUpdate({ file_id },{ 
                     $set: { content: code  } 
-                }, { new: true });
+                }, { new: true }).lean();
 
 
                 if (file.content === code) {
@@ -215,13 +216,13 @@ function socketConnect(io) {
                          if (no_record || (same_record || closer_timestamp) !== true) {
 
                             file = await fileModel.findOneAndUpdate({ file_id }, {
-                                $push: {
-                                    history: { 
-                                        content: code, 
-                                        contributions: file.contributions
-                                    }
-                                }
-                            }, { new: true });
+                                        $push: {
+                                            history: { 
+                                                content: code, 
+                                                contributions: file.contributions
+                                            }
+                                        }
+                                    }, { new: true }).lean();
 
                             io.in(file_id).emit('reupdate_history', {
                                 status: 'ok'
@@ -353,7 +354,7 @@ function socketConnect(io) {
                 const already_exists = await fileModel.findOne({ 
                     name: new_file.name,
                     room_id
-                });
+                }).lean();
 
                 if (already_exists) {
                     socket.emit('file_added', {
@@ -497,7 +498,7 @@ function socketConnect(io) {
 
         socket.on('submit_feedback', async ({ room_id, user_id, new_feedback }) => {
             try {
-                const user = await professorModel.findOne({ uid: user_id });
+                const user = await professorModel.findOne({ uid: user_id }).lean();
                 if (!user) {
                     return socket.emit('submit_feedback_result', {
                         status: false,
@@ -537,16 +538,42 @@ function socketConnect(io) {
                     { $pull: { feedback: { createdAt: new Date(createdAt) } } }
                 , { new: true }).lean();
 
-                console.log(res)
-                console.log(res?.feedback);
-                console.log(createdAt);
-                
                 io.to(room_id).emit('submit_feedback_result', {
                     status: 'ok',
                     action: 'delete'
                 });
             } catch (e) {
                 console.log('delete_feedback Error:', e);
+            }
+        });
+
+        socket.on('update_code_solo', async ({ room_id, file_id, content }) => {
+            try {
+                const room = await soloRoomModel.findOneAndUpdate({ room_id: room_id }, { 
+                    $set: { [`files.${file_id}.content`]: content }
+                }, { new: true }).lean();
+
+                console.log('update_code_solo', room);
+                const file = room.files.find(file => file.id === file_id);
+
+                if (file?.content === content) {
+                    socket.emit('update_result_solo', {
+                        status: 'ok',
+                        message: 'Code updated successfully',
+                    });
+                } else {
+                    socket.emit('update_result_solo', {
+                        status: false,
+                        message: 'Code change unsaved.',
+                    });    
+                }
+
+            } catch (e) {
+                socket.emit('update_result_solo', {
+                    status: false,
+                    message: 'Code change unsaved.',
+                });
+                console.log('update_code_solo Error:', e);
             }
         });
     });
