@@ -39,6 +39,9 @@ const activityRouter = require('./routes/activity.routes');
 //*Socket.io connection
 const socketConnect = require('./socket events/main');
 
+//*Authentication middleware
+const middlewareAuth = require('./middleware');
+
 //*PORT the server will use
 const PORT = process.env.PORT || 5000;
 
@@ -92,7 +95,7 @@ mongoose.connect(uri).then(() => {
     console.log('Error. Connection failed.', err);
 });
 
-app.get('/api/get-course-details' , async (req, res) => {
+app.get('/api/get-course-details', middlewareAuth, async (req, res) => {
     try {
         const professor = await professorModel.findOne({
             assigned_courses : {

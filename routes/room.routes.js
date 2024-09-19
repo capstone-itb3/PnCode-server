@@ -6,6 +6,7 @@ const teamModel = require('../models/teams.model');
 const activityModel = require('../models/activities.model');
 const fileModel = require('../models/files.model');
 const { setTeamInfo } = require('../utils/setInfo');
+const middlewareAuth = require('../middleware');
 
 const express = require('express');
 const roomRouter = express.Router();
@@ -15,7 +16,7 @@ const { v4: uuid } = require('uuid');
 //TODO 1:   Apply activity's access timeframes
 // // TODO 2.1: Apply activity's deadline 
 // // TODO 2.2: Add a function to check if the recorded members of the room instead of the team
-roomRouter.post('/api/get-assigned-room-details/', async (req, res) => {
+roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, res) => {
     try {
         let access = 'write';
 
@@ -85,48 +86,48 @@ roomRouter.post('/api/get-assigned-room-details/', async (req, res) => {
                                         message: 'Assigned room details retrieved successfully.' });
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: e.message });
-    }
-});
-
-roomRouter.get('/api/get-solo-room-details', async (req, res) => {
-    try {
-        const room = await soloRoomModel.findOne({ room_id: req.query.room_id }).lean();
- 
-        if (room) {
-            return res.status(200).json({ status: 'ok', room: room, message: 'Room found' });
-        } else {
-            return res.status(400).json({ status: false, message: 'Room not found' });
-        }
- 
-    } catch (err) {
-        console.log(err);
-        return res.status(500).json({ status: false, message: err });
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
     }   
 });
 
-
-roomRouter.post('/api/view-output', async (req, res) => {
+roomRouter.get('/api/get-solo-room-details', middlewareAuth, async (req, res) => {
     try {
-        let room = await assignedRoomModel.findOne({ room_id: req.body.room_id });
+        const room = await soloRoomModel.findOne({ room_id: req.query.room_id }).lean();
+
+        if (room && room.owner_id === req.body.user.uid) {
+            return res.status(200).json({ status: 'ok', room: room, message: 'Room found.' });
+
+        } else {
+            return res.status(400).json({ status: false, message: 'Room not found.' });
+        }
+ 
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }   
+});
+
+roomRouter.get('/api/view-output', middlewareAuth, async (req, res) => {
+    try {
+        let room = await assignedRoomModel.findOne({ room_id: req.query.room_id });
 
         //*is assigned room
         if (room) {
-            const files = await fileModel.find({ room_id: req.body.room_id });
-            const file = files.find(f => f.name === req.body.file_name);
+            const files = await fileModel.find({ room_id: req.query.room_id });
+            const file = files.find(f => f.name === req.query.file_name);
     
             if (!file) {
                 return res.status(400).json({ status: false, message: 'File does not exist.'});
             }
     
-            if (req.body.position === 'Student') {
-                if (!room.recorded_members.includes(req.body.uid)) {
+            if (req.body.user.position === 'Student') {
+                if (!room.recorded_members.includes(req.body.user.uid)) {
                     return res.status(400).json({ status: false, message: 'Not a part of this room.'});
                 }
                 
-            } if (req.body.position === 'Professor') {
+            } if (req.body.user.position === 'Professor') {
                 const activity = await activityModel.findOne({ activity_id: room.activity_id });
-                const professor = await professorModel.findOne({ uid: req.body.uid,
+                const professor = await professorModel.findOne({ uid: req.body.user.uid,
                     assigned_courses: { $elemMatch: {
                                             course_code: activity.course_code,
                                             sections: activity.section
@@ -143,17 +144,19 @@ roomRouter.post('/api/view-output', async (req, res) => {
                                             active: file,
                                             message: 'Files retrieved successfully.' });
         }
+
+
         //*is solo room
-        room = await soloRoomModel.findOne({ room_id: req.body.room_id });
+        room = await soloRoomModel.findOne({ room_id: req.query.room_id });
         if (room) {
             files = room.files
-            file = files.find(f => f.name === req.body.file_name);
+            file = files.find(f => f.name === req.query.file_name);
 
             if (!file) {
                 return res.status(400).json({ status: false, message: 'File does not exist.'});
             }
 
-            if (room.owner_id === req.body.uid) {
+            if (room.owner_id === req.body.user.uid) {
                 return res.status(200).json({   status: 'ok',
                                                 files: files,
                                                 active: file,
@@ -170,12 +173,12 @@ roomRouter.post('/api/view-output', async (req, res) => {
 
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: e });
-    }
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }   
 });
 
 //*POST function when user creates a solo room
-roomRouter.post('/api/create-room-solo', async (req, res) => {
+roomRouter.post('/api/create-room-solo', middlewareAuth, async (req, res) => {
     try {
         let already_exists = true,
         new_id = 0;
@@ -188,30 +191,30 @@ roomRouter.post('/api/create-room-solo', async (req, res) => {
             });
         }
 
-        const created_solos = await soloRoomModel.find({ owner_id: req.body.uid });
+        const created_solos = await soloRoomModel.find({ owner_id: req.body.user.uid });
 
-        if (created_solos.length > 3) {
-            return res.status(400).json({ status: false, message: 'You cannot create more than three (3) solo rooms.'})
+        if (created_solos.length >= 3) {
+            return res.status(400).json({ status: false, message: 'You can\'t create more than three (3) solo rooms.'})
         } else {
             await soloRoomModel.create({
                 room_id: new_id,
                 room_name: `Solo ${created_solos.length + 1}`,
                 room_type: 'solo',
-                owner_id: req.body.uid,
+                owner_id: req.body.user.uid,
             });    
         }
                     
         return res.status(200).json({ status: 'ok', room_id: new_id, message: 'Room Success' });
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: e });
-    }
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }   
 });
 
 //*POST function to get solo rooms for all users
-roomRouter.post('/api/get-solo-rooms', async (req, res) => {
+roomRouter.get('/api/get-solo-rooms', middlewareAuth, async (req, res) => {
     try {
-        const solo_rooms = await soloRoomModel.find({ owner_id: req.body.uid });
+        const solo_rooms = await soloRoomModel.find({ owner_id: req.body.user.uid });
         const convertOffset = req.body.timezone_diff * 60 * 1000;
 
         for (let i = 0; i < solo_rooms.length; i++) {
@@ -220,10 +223,10 @@ roomRouter.post('/api/get-solo-rooms', async (req, res) => {
         solo_rooms.sort((a, b) => b.updatedAt - a.updatedAt);
         
         return res.status(200).json({ status: 'ok', solo_rooms: solo_rooms});
-    } catch (err) {
-        console.log(err);
-        return res.status(500).json({ status: false, message: err });
-    }
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }   
 });
 
 module.exports = roomRouter;

@@ -3,12 +3,13 @@ const professorModel = require('../models/professors.model');
 const activityModel = require('../models/activities.model');
 const teamModel = require('../models/teams.model');
 const { setTeamInfo } = require('../utils/setInfo');
+const middlewareAuth = require('../middleware');
 
 const express = require('express');
 const teamRouter = express.Router();
 const { v4: uuid } = require('uuid');
 
-teamRouter.get('/api/get-teams', async (req, res) => {
+teamRouter.get('/api/get-teams', middlewareAuth, async (req, res) => {
     try {
         const teams = await teamModel.find({ course: req.query.course, section: req.query.section });
 
@@ -22,7 +23,7 @@ teamRouter.get('/api/get-teams', async (req, res) => {
     }
 });
 
-teamRouter.post('/api/create-team', async (req, res) => {
+teamRouter.post('/api/create-team', middlewareAuth, async (req, res) => {
     try {
         if (req.body.name.length > 15) {
             return res.status(400).json({ status: false, message: 'Team name must be less than 15 characters.' });
@@ -34,7 +35,7 @@ teamRouter.post('/api/create-team', async (req, res) => {
         const members = [];
         if (req.body.position === 'Student') {
             const team = await teamModel.findOne({ 
-                members: req.body.uid,  
+                members: req.body.user.uid,  
                 course: req.body.course,
                 section: req.body.section
             });
@@ -42,7 +43,7 @@ teamRouter.post('/api/create-team', async (req, res) => {
             if (team) {
                 return res.status(400).json({ status: false, message: 'You already are in a team.', reload: true});
             } else {
-                members.push(req.body.uid);
+                members.push(req.body.user.uid);
             }
         }
         
@@ -62,7 +63,7 @@ teamRouter.post('/api/create-team', async (req, res) => {
     }
 });
 
-teamRouter.post('/api/get-team-details', async (req, res) => {
+teamRouter.post('/api/get-team-details', middlewareAuth, async (req, res) => {
     try {
         const team = await teamModel.findOne({ team_id: req.body.team_id });
         
@@ -72,8 +73,8 @@ teamRouter.post('/api/get-team-details', async (req, res) => {
         } else {
             let access = false;
 
-            if (req.body.auth.position === 'Professor') {
-                for (let course of req.body.auth.assigned_courses) {
+            if (req.body.user.position === 'Professor') {
+                for (let course of req.body.user.assigned_courses) {
                     for (let section of course.sections) {
 
                         if (team.course === course.course_code && team.section === section) {
@@ -83,11 +84,11 @@ teamRouter.post('/api/get-team-details', async (req, res) => {
                     }
                 }
 
-            } else if (req.body.auth.position === 'Student') {
-                for (let course of req.body.auth.enrolled_courses) {
+            } else if (req.body.user.position === 'Student') {
+                for (let course of req.body.user.enrolled_courses) {
                     if (team.course === course.course_code && team.section === course.section) {
 
-                        if (team.members.includes(req.body.auth.uid)) {
+                        if (team.members.includes(req.body.user.uid)) {
                             access = 'write';
                             break;
                         } else {
@@ -109,7 +110,7 @@ teamRouter.post('/api/get-team-details', async (req, res) => {
     }
 });
 
-teamRouter.post('/api/get-included-students', async (req, res) => {
+teamRouter.post('/api/get-included-students', middlewareAuth, async (req, res) => {
     try {
         const student_array = await studentModel.find({
             enrolled_courses: {

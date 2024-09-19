@@ -549,29 +549,35 @@ function socketConnect(io) {
 
         socket.on('update_code_solo', async ({ room_id, file_id, content }) => {
             try {
-                const room = await soloRoomModel.findOneAndUpdate({ room_id: room_id }, { 
-                    $set: { [`files.${file_id}.content`]: content }
-                }, { new: true }).lean();
+                const result = await soloRoomModel.findOneAndUpdate(
+                    { room_id: room_id, "files.file_id": file_id },
+                    { $set: { "files.$.content": content } },
+                    { new: true }
+                );
 
-                console.log('update_code_solo', room);
-                const file = room.files.find(file => file.id === file_id);
-
-                if (file?.content === content) {
-                    socket.emit('update_result_solo', {
-                        status: 'ok',
-                        message: 'Code updated successfully',
-                    });
+                if (result) {
+                    const updatedFile = result.files.find(file => file.file_id === file_id);
+                    if (updatedFile && updatedFile.content === content) {
+                        socket.emit('update_result_solo', {
+                            status: 'ok',
+                            message: 'Code updated successfully',
+                        });
+                    } else {
+                        socket.emit('update_result_solo', {
+                            status: false,
+                            message: 'Code change not reflected in the database.',
+                        });
+                    }
                 } else {
                     socket.emit('update_result_solo', {
                         status: false,
-                        message: 'Code change unsaved.',
-                    });    
+                        message: 'Room or file not found.',
+                    });
                 }
-
             } catch (e) {
                 socket.emit('update_result_solo', {
                     status: false,
-                    message: 'Code change unsaved.',
+                    message: 'Error updating code: ' + e.message,
                 });
                 console.log('update_code_solo Error:', e);
             }

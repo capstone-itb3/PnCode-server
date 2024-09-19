@@ -4,25 +4,27 @@ const teamModel = require('../models/teams.model');
 const activityModel = require('../models/activities.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const fileModel = require('../models/files.model');
+const middlewareAuth = require('../middleware');
 
 const express = require('express');
 const activityRouter = express.Router();
 const { v4: uuid } = require('uuid');
 
-activityRouter.post('/api/get-activities', async (req, res) => {
+activityRouter.get('/api/get-activities', middlewareAuth, async (req, res) => {
     try { 
-        const activities = await activityModel.find({ course_code: req.body.course, section: req.body.section });
+        const activities = await activityModel.find({ course_code: req.query.course, section: req.query.section });
         
-        activities.sort((a, b) => b.createdAt - a.createdAt);
+        activities.sort((a, b) => b?.createdAt - a?.createdAt);
 
         res.status(200).json({ status: 'ok', activities: activities, message: 'Activities retrieved successfully.' });
-    } catch(e) {
-        console.log(e)
-        res.status(500).json({ status: false, message: 'Error. Retrieving activities failed.' });
-    }
+
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }   
 });
 
-activityRouter.post('/api/create-activity', async (req, res) => {
+activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => {
     try {
         let already_exists = true, 
             new_id = 0;
@@ -48,45 +50,50 @@ activityRouter.post('/api/create-activity', async (req, res) => {
         res.status(200).json({ status: 'ok', message: 'Activity created successfully.' });
     } catch (e) {
         console.log(e);
-        res.status(500).json({ status: false, message: 'Error. Creating activity failed.' });
-    }
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }   
 });
 
 
-activityRouter.post('/api/visit-activity', async (req, res) => {
+activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
     try {
         const team = await teamModel.findOne({
-            members: req.body.uid,
-            course: req.body.course,
-            section: req.body.section
+            members: req.body.user.uid,
+            course: req.query.course,
+            section: req.query.section
         });
 
         if (!team) {
-            return res.status(500).json({ status: false, message: 'Please join or create a team first.' });
+            return res.status(400).json({ status: false, message: 'Please join or create a team first.' });
         } 
 
         const assigned_room = await assignedRoomModel.findOne({
-            activity_id: req.body.activity_id,
+            activity_id: req.query.activity_id,
             owner_id: team.team_id
-        });
+        })
+        .select('room_id')
+        .lean();
 
         if (assigned_room) {
             return res.status(200).json({ status: 'ok', room_id: assigned_room.room_id, message: 'Room found.' });
         }
 
-        const new_room = await assignedRoomModel.create({
-            room_id: uuid().toString(),
+        const new_room = uuid().toString();
+
+        await assignedRoomModel.create({
+            room_id: new_room,
             room_name: `${team.team_name}'s Room`,
             room_type: 'assigned',
-            activity_id: req.body.activity_id,
+            activity_id: req.query.activity_id,
             owner_id: team.team_id,
             recorded_members: team.members,
         });
-        const new_file = await fileModel.create({
+        
+        await fileModel.create({
             file_id: uuid().toString(),
             name: `index.html`,
             type: 'html',
-            room_id: new_room.room_id,
+            room_id: new_room,
             content:    '<!DOCTYPE html>'
                     + '\n<html lang="en">'
                     + '\n<head>'
@@ -100,17 +107,21 @@ activityRouter.post('/api/visit-activity', async (req, res) => {
             history: []
         });
 
-        return res.status(200).json({ status: 'ok', room_id: new_room.room_id, message: 'New room created for the activity' });
+        return res.status(200).json({ status: 'ok', room_id: new_room, message: 'New room created for the activity' });
     } catch (e) {
         console.log(e);
-        res.status(500).json({ status: false, message: 'Error. Creating activity failed.' });
-    }
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }   
 });
 
-activityRouter.post('/api/get-activity-details', async (req, res) => {
+activityRouter.get('/api/get-activity-details', middlewareAuth, async (req, res) => {
     try {
+        if (req.body.user.position !== 'Professor') {
+            return res.status(403).json({ status: false, message: 'You do not have access to this resource.' });
+        }
+        
         const activity = await activityModel.findOne({
-            activity_id: req.body.activity_id
+            activity_id: req.query.activity_id
         });
 
         if (!activity) {
@@ -118,7 +129,7 @@ activityRouter.post('/api/get-activity-details', async (req, res) => {
         } else {
             let access = false;
 
-            for (let course of req.body.auth.assigned_courses) {
+            for (let course of req.body.user.assigned_courses) {
                 if (course.course_code === activity.course_code && course.sections.includes(activity.section)) {
                     access = true;
                     break;
@@ -126,7 +137,7 @@ activityRouter.post('/api/get-activity-details', async (req, res) => {
             }
 
             const rooms = await assignedRoomModel.find({
-                activity_id: req.body.activity_id
+                activity_id: req.query.activity_id
             }).lean();
             
             return res.status(200).json({ status: 'ok', activity: activity, access: access, rooms: rooms});            
@@ -134,8 +145,8 @@ activityRouter.post('/api/get-activity-details', async (req, res) => {
 
     } catch (e) {
         console.log(e);
-        res.status(500).json({ status: false, message: 'Error. Retrieving activity details failed.' });
-    }
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }   
 });
 
 activityRouter.post('/api/update-dates', async (req, res) => {
@@ -148,8 +159,8 @@ activityRouter.post('/api/update-dates', async (req, res) => {
         return res.status(200).json({ status: 'ok', message: 'Activity is updated successfully.' });
     } catch (e) {
         console.log(e);
-        res.status(500).json({ status: false, message: 'Error. Editing activity dates failed.' });
-    }
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }   
 });
 
 activityRouter.post('/api/delete-activity', async (req, res) => {
@@ -158,7 +169,9 @@ activityRouter.post('/api/delete-activity', async (req, res) => {
             activity_id: req.body.activity_id
         });
 
-        const rooms_related = await assignedRoomModel.find({ activity_id: req.body.activity_id }).lean();
+        const rooms_related = await assignedRoomModel.find({ activity_id: req.body.activity_id })
+        .select('room_id')
+        .lean();
 
         await Promise.all(rooms_related.map(deleteRooms));
         async function deleteRooms(room) {
@@ -169,8 +182,8 @@ activityRouter.post('/api/delete-activity', async (req, res) => {
         return res.status(200).json({ status: 'ok', message: 'Activity deleted successfully.' });
     } catch (e) {
         console.log(e);
-        res.status(500).json({ status: false, message: 'Error. Deleting activity failed.' });
-    }
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }   
 });
     
 
