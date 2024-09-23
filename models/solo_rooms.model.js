@@ -10,10 +10,6 @@ const soloRoomSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    room_type: {
-        type: String,
-        required: true
-    },
     owner_id: {
         type: String,
         required: true

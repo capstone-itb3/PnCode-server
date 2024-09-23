@@ -37,7 +37,7 @@ const teamRouter = require('./routes/team.routes');
 const activityRouter = require('./routes/activity.routes');
 
 //*Socket.io connection
-const socketConnect = require('./socket events/main');
+const socketConnect = require('./socket');
 
 //*Authentication middleware
 const middlewareAuth = require('./middleware');
@@ -93,35 +93,4 @@ mongoose.connect(uri).then(() => {
     socketConnect(io);                
 }).catch((err) => {
     console.log('Error. Connection failed.', err);
-});
-
-app.get('/api/get-course-details', middlewareAuth, async (req, res) => {
-    try {
-        const professor = await professorModel.findOne({
-            assigned_courses : {
-                $elemMatch: {
-                    course_code: req.query.course_code,
-                    sections: req.query.section
-                }
-            }
-        });
-
-        const course = await courseModel.findOne({
-            course_code: req.query.course_code
-        });
-
-        if (!course) {
-            return res.status(403).json({ status: false, message: 'Course not found.' });
-        }
-
-        return res.status(200).json({   status: 'ok',
-                                        course_title: course.course_title,
-                                        professor: professor ? `${professor.first_name} ${professor.last_name}` : 'TBA',
-                                        message: 'Successfully retrieved professor name.' });
-    } catch (e) {
-        console.log(e);
-        res.status(500).json({  status: false, 
-                                message: 'Internal Server Error' });
-    }
-
 });

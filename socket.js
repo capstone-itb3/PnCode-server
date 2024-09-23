@@ -1,13 +1,13 @@
 const { v4: uuid } = require('uuid');
 const random = require('lib0/random');
 
-const studentModel = require('../models/students.model');
-const professorModel = require('../models/professors.model');
-const assignedRoomModel = require('../models/assigned_rooms.model');
-const soloRoomModel = require('../models/solo_rooms.model');
-const fileModel = require('../models/files.model');
-const { tokenizeStudent, tokenizeProfessor } = require('../utils/tokenizer');
-const { setContributionInfo, setMessageInfo, setFeedbackInfo } = require('../utils/setInfo');
+const studentModel = require('./models/students.model');
+const professorModel = require('./models/professors.model');
+const assignedRoomModel = require('./models/assigned_rooms.model');
+const soloRoomModel = require('./models/solo_rooms.model');
+const fileModel = require('./models/files.model');
+const { tokenizeStudent, tokenizeProfessor } = require('./utils/tokenizer');
+const { setContributionInfo, setMessageInfo, setFeedbackInfo } = require('./utils/setInfo');
 
 const colors = [  
     { color: 'red',       light: '#ff000033' },

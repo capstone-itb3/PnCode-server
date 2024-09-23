@@ -1,15 +1,5 @@
 const mongoose = require('mongoose');
 
-const assignedCourseSchema = new mongoose.Schema({
-    course_code: {
-        type: String,
-        required: true    
-    },
-    sections: {
-        type: [String]
-    }
-});
-
 const notificationSchema = new mongoose.Schema({
     message: {
         type: String,
@@ -50,10 +40,6 @@ const professorSchema = new mongoose.Schema({
     },
     position: {
         type: String,
-        required: true
-    },
-    assigned_courses: {
-        type: [assignedCourseSchema],
         required: true
     },
     notifications: {

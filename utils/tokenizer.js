@@ -1,29 +1,11 @@
 const jwt = require('jsonwebtoken');
 
-function tokenizeStudent(user) {
-    let token = {
+function tokenizer(user) {
+    const token = {
                     uid: user.uid,
-                    email: user.email,
-                    first_name: user.first_name,
-                    last_name: user.last_name,
-                    section: user.section,
-                    enrolled_courses: user.enrolled_courses,
-                    position: user.position,
-                    notifications: user.notifications,
-                    preferences: user.preferences 
-                }    
-
-    return jwt.sign(token, 'secret123capstoneprojectdonothackimportant0987654321');
-};
-
-function tokenizeProfessor(user) {
-    let token = {
-                    uid: user.uid,
-                    email: user.email,
                     first_name: user.first_name,
                     last_name: user.last_name,
                     position: user.position,
-                    assigned_courses: user.assigned_courses,
                     notifications: user.notifications,
                     preferences: user.preferences
                 }
@@ -31,5 +13,4 @@ function tokenizeProfessor(user) {
     return jwt.sign(token, 'secret123capstoneprojectdonothackimportant0987654321');
 };
 
-
-module.exports = { tokenizeStudent, tokenizeProfessor };
+module.exports = { tokenizer };

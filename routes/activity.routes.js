@@ -5,6 +5,7 @@ const activityModel = require('../models/activities.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const fileModel = require('../models/files.model');
 const middlewareAuth = require('../middleware');
+const { verifyStudent, verifyProfessor } = require('../utils/verifyAccess');
 
 const express = require('express');
 const activityRouter = express.Router();
@@ -26,6 +27,10 @@ activityRouter.get('/api/get-activities', middlewareAuth, async (req, res) => {
 
 activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => {
     try {
+        if (req.body.activity_name.length > 30) {
+            return res.status(400).json({ status: false, message: 'Activity name must be less than 30 characters.' });
+        }
+
         let already_exists = true, 
             new_id = 0;
 
@@ -58,7 +63,7 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
 activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
     try {
         const team = await teamModel.findOne({
-            members: req.body.user.uid,
+            members: req.user.uid,
             course: req.query.course,
             section: req.query.section
         });
@@ -83,7 +88,6 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
         await assignedRoomModel.create({
             room_id: new_room,
             room_name: `${team.team_name}'s Room`,
-            room_type: 'assigned',
             activity_id: req.query.activity_id,
             owner_id: team.team_id,
             recorded_members: team.members,
@@ -116,7 +120,7 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
 
 activityRouter.get('/api/get-activity-details', middlewareAuth, async (req, res) => {
     try {
-        if (req.body.user.position !== 'Professor') {
+        if (req.user.position !== 'Professor') {
             return res.status(403).json({ status: false, message: 'You do not have access to this resource.' });
         }
         
@@ -125,31 +129,26 @@ activityRouter.get('/api/get-activity-details', middlewareAuth, async (req, res)
         });
 
         if (!activity) {
-            return res.status(500).json({ status: false, message: 'Activity not found.' });
-        } else {
-            let access = false;
-
-            for (let course of req.body.user.assigned_courses) {
-                if (course.course_code === activity.course_code && course.sections.includes(activity.section)) {
-                    access = true;
-                    break;
-                }
-            }
-
-            const rooms = await assignedRoomModel.find({
-                activity_id: req.query.activity_id
-            }).lean();
-            
-            return res.status(200).json({ status: 'ok', activity: activity, access: access, rooms: rooms});            
+            return res.status(404).json({ status: false, message: 'Activity not found.' });
         }
 
+        if (!verifyProfessor(activity.course_code, activity.section, req.user.uid)) {
+            return res.status(403).json({ status: false, message: 'You do not have access to this resource.' });
+        }
+
+        const rooms = await assignedRoomModel.find({
+            activity_id: req.query.activity_id
+        }).lean();
+        
+        return res.status(200).json({ status: 'ok', activity: activity, rooms: rooms});            
+        
     } catch (e) {
         console.log(e);
         return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
     }   
 });
 
-activityRouter.post('/api/update-dates', async (req, res) => {
+activityRouter.post('/api/update-dates', middlewareAuth, async (req, res) => {
     try {
         await activityModel.updateOne({ activity_id: req.body.activity_id }, {
             open_time: req.body.open_time,
@@ -163,7 +162,7 @@ activityRouter.post('/api/update-dates', async (req, res) => {
     }   
 });
 
-activityRouter.post('/api/delete-activity', async (req, res) => {
+activityRouter.post('/api/delete-activity', middlewareAuth, async (req, res) => {
     try {
         await activityModel.deleteOne({
             activity_id: req.body.activity_id

@@ -1,9 +1,10 @@
 const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 const sectionModel = require('../models/sections.model');
-const courseModel = require('../models/courses.model');
-const { tokenizeStudent, tokenizeProfessor } = require('../utils/tokenizer');
+const { tokenizer } = require('../utils/tokenizer');
+const middlewareAuth = require('../middleware');
 const { client }  = require('../database');
+const { setCourseInfoStudent, setCourseInfoProfessor, setMemberInfo } = require('../utils/setInfo');
 
 let customAlphabet;
 import('nanoid').then(nanoid => {
@@ -14,31 +15,6 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 
 const accountRouter = express.Router();
-
-//*GET function to retrieve available sections 
-accountRouter.get('/api/available-sections', async (req, res) => {
-    try {
-        const sections = await sectionModel.find().lean();
-        sections.sort((a, b) => a.year - b.year);
-
-        const data = sections.map(value => {
-            return {
-                year: value.year,
-                program: value.program,
-                sections: value.sections.map(sec => sec.slice(1))
-            };
-        });
-
-        return res.status(200).json({   status: 'ok',
-                                        message: 'Successfully retrieved sections.',
-                                        data: data});
-    } catch (err) {
-        console.log(err);
-        return res.status(500).json({   status: false,
-                                        message: 'Error occured while retrieving sections:' + err});
-    }
-});
-
 
 //*POST function when user registers
 accountRouter.post('/api/register', async (req, res) => {
@@ -61,40 +37,10 @@ accountRouter.post('/api/register', async (req, res) => {
                                             message: 'The email address you entered is already registered. ' 
                                                 + 'If you think this is a mistake, please contact the MISD.'});
     
-        } else {            
+        } else {
             try {
                 const salt = await bcrypt.genSalt(10);
-                const passwordHash = await bcrypt.hash(req.body.password, salt);
-
-                const config = await client.db().collection('config').findOne({});
-
-                const section = await sectionModel.findOne({
-                    year: req.body.year,
-                    program: req.body.section.toString().slice(0, -2)
-                });
-
-                const enrolled_courses = () => {
-                    const enrolled = [];
-
-                    if (config.current_semester === '1st') {
-                        section.courses_1stsem.forEach((value) => {
-                            enrolled.push({
-                                course_code: value,
-                                section: req.body.year + req.body.section
-                            })
-                        });
-                    } else if (config.current_semester === '2nd') {
-                        section.courses_2ndsem.forEach((value) => {
-                            enrolled.push({
-                                course_code: value,
-                                section: req.body.year + req.body.section
-                            })
-                        });
-                    }
-
-                    return enrolled; 
-                };
-
+                const passwordHash = await bcrypt.hash(req.body.password, salt);                
                 const nanoid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', 28);
 
                 await studentModel.create({
@@ -103,9 +49,7 @@ accountRouter.post('/api/register', async (req, res) => {
                     password: passwordHash,
                     first_name: req.body.first_name,
                     last_name: req.body.last_name,
-                    section: `${req.body.year}${req.body.section}`,
                     position: 'Student',
-                    enrolled_courses: enrolled_courses(),
                     notifications: [],
                     preferences: {} 
                 });
@@ -135,11 +79,10 @@ accountRouter.post('/api/login', async (req, res) => {
                                             message: 'Email or password is incorrect.'});
         }
                 
-        const token = tokenizeStudent(user_data);
+        const token = tokenizer(user_data);
 
-        return res.status(200).json({   status: 'ok', 
+        return res.status(200).json({   status: 'ok',
                                         token: token,
-                                        starting_course: user_data.enrolled_courses[0].course_code,
                                         message: 'Logged in successfully.' });
     } catch (err) {
         return res.status(500).json({   status: false, 
@@ -162,12 +105,10 @@ accountRouter.post('/api/login/professor', async (req, res) => {
                                             message: 'Email or password is incorrect.'});
         }
 
-        const token = tokenizeProfessor(user_data);
+        const token = tokenizer(user_data);
 
-        return res.status(200).json({   status: 'ok', 
-                                        token: token, 
-                                        starting_course: user_data.assigned_courses[0].course_code,
-                                        starting_section: user_data.assigned_courses[0].sections[0].toString(),
+        return res.status(200).json({   status: 'ok',
+                                        token: token,
                                         message: 'Logged in successfully.' });
 
     } catch (err) {
@@ -176,5 +117,172 @@ accountRouter.post('/api/login/professor', async (req, res) => {
     }
 });
 
+//*POST function to get student enrolled courses
+accountRouter.post('/api/get-enrolled-courses', middlewareAuth, async (req, res) => {
+    try {
+        let courses = await sectionModel.find({ students: req.user.uid })
+        .select('course_code section professor')
+        .lean();
+
+        courses = await Promise.all(courses.map(setCourseInfoStudent));
+
+        return res.status(200).json({   status: 'ok', courses: courses });
+
+    } catch (e) {
+        return res.status(500).json({   status: false,
+                                        message: e.message });
+    }
+});
+
+//*POST function to get professor assigned courses
+accountRouter.post('/api/get-assigned-courses', middlewareAuth, async (req, res) => {
+    let courses = [];
+    try {
+        courses = await sectionModel.find({ professor: req.user.uid })
+                  .select('course_code section id_link students requests')
+                  .lean();
+
+        courses = await Promise.all(courses.map(setCourseInfoProfessor));
+
+        return res.status(200).json({  status: 'ok', courses: courses });
+
+    } catch (e) {
+        console.log(e)
+        return res.status(500).json({   status: false,
+                                        message: e.message });
+    }
+})
+
+accountRouter.post('/api/request-course', middlewareAuth, async (req, res) => {
+    try {
+        const courseCaps = String(req.body.course_code).toUpperCase();
+        const sectionCaps = String(req.body.section).toUpperCase();
+
+        console.log(courseCaps);
+        console.log(sectionCaps);
+
+        const section = await sectionModel.findOne({ 
+            course_code: courseCaps,
+            section: sectionCaps
+         }).lean();
+
+         if (!section) {
+             return res.status(400).json({  status: false,
+                                             message: 'Course does not exist.' });
+         }
+
+         if (section.students.includes(req.user.uid)) {
+             return res.status(400).json({  status: false,
+                                             message: 'You are already enrolled in this course.' });
+         }
+
+         if (section.requests.includes(req.user.uid)) {
+             return res.status(400).json({  status: false,
+                                             message: 'You have already requested to join this course.' });
+         }
+
+        await sectionModel.updateOne({ course_code: courseCaps, section: sectionCaps }, {
+            $push: {
+                requests: req.user.uid
+            }
+        });
+
+        return res.status(200).json({  status: 'ok', message: 'Request sent successfully.' });
+
+    } catch (e) {
+        console.log(e)
+        return res.status(500).json({   status: false,
+                                        message: e.message });
+    }
+});
+
+accountRouter.post('/api/get-included-students', middlewareAuth, async (req, res) => {
+    try {
+
+        const section = await sectionModel.findOne({ course_code: req.body.course_code, section: req.body.section })
+        .select('students requests')
+        .lean();
+
+        let students = await Promise.all(section.students.map(setMemberInfo));
+        let requests = [];
+        
+
+        console.log(section)
+
+        if (req.body.list === 'all') {
+            requests = await Promise.all(section.requests.map(setMemberInfo));
+        }
+
+        if (req.user.position === 'Student') {
+            students = students.filter(student => student.uid !== req.user.uid);
+        }
+
+        students.sort((a, b) => a?.last_name.localeCompare(b?.last_name))
+
+        requests.sort((a, b) => a?.last_name.localeCompare(b?.last_name));
+
+        return res.json({   status: 'ok', 
+                            students: students, 
+                            requests: requests, 
+                            message: 'Reloaded students within the course.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false, 
+                                        message: e.message });
+    }
+});
+
+accountRouter.post('/api/accept-request', middlewareAuth, async (req, res) => {
+    try {
+        await sectionModel.updateOne({ course_code: req.body.course_code, section: req.body.section }, {
+            $pull: {
+                requests: req.body.uid
+            },
+            $push: {
+                students: req.body.uid
+            }
+        });
+        
+        return res.status(200).json({  status: 'ok', message: 'Request accepted successfully.' });
+
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: e.message });
+    }
+});
+
+accountRouter.post('/api/reject-request', middlewareAuth, async (req, res) => {
+    try {
+        await sectionModel.updateOne({ course_code: req.body.course_code, section: req.body.section }, {
+            $pull: {
+                requests: req.body.uid
+            }
+        });
+
+        return res.status(200).json({  status: 'ok', message: 'Request rejected successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: e.message });
+    }
+});
+
+accountRouter.post('/api/remove-student', middlewareAuth, async (req, res) => {
+    try {
+        await sectionModel.updateOne({ course_code: req.body.course_code, section: req.body.section }, {
+            $pull: {
+                students: req.body.uid
+            }
+        });
+
+        return res.status(200).json({  status: 'ok', message: 'Student removed successfully.' });
+        
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: e.message });
+    }
+})
 
 module.exports = accountRouter;

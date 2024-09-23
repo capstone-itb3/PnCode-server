@@ -2,7 +2,9 @@ const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 const activityModel = require('../models/activities.model');
 const teamModel = require('../models/teams.model');
-const { setTeamInfo } = require('../utils/setInfo');
+const sectionModel = require('../models/sections.model');
+const { setMemberInfo } = require('../utils/setInfo');
+const { verifyStudent, verifyProfessor } = require('../utils/verifyAccess');
 const middlewareAuth = require('../middleware');
 
 const express = require('express');
@@ -14,7 +16,7 @@ teamRouter.get('/api/get-teams', middlewareAuth, async (req, res) => {
         const teams = await teamModel.find({ course: req.query.course, section: req.query.section });
 
         for (let i = 0; i < teams.length; i++) {
-            teams[i].members = await Promise.all(teams[i].members.map(setTeamInfo));
+            teams[i].members = await Promise.all(teams[i].members.map(setMemberInfo));
         }
         
         return res.status(200).json({ status: 'ok', teams: teams });
@@ -25,25 +27,26 @@ teamRouter.get('/api/get-teams', middlewareAuth, async (req, res) => {
 
 teamRouter.post('/api/create-team', middlewareAuth, async (req, res) => {
     try {
-        if (req.body.name.length > 15) {
-            return res.status(400).json({ status: false, message: 'Team name must be less than 15 characters.' });
+        if (req.body.name.length > 30) {
+            return res.status(400).json({ status: false, message: 'Team name must be less than 30 characters.' });
         
         } else if (req.body.name.length < 3) {
             return res.status(400).json({ status: false, message: 'Team name must be at least 3 characters.' });
         
         }
+        
         const members = [];
-        if (req.body.position === 'Student') {
+        if (req.user.position === 'Student') {
             const team = await teamModel.findOne({ 
-                members: req.body.user.uid,  
+                members: req.user.uid,  
                 course: req.body.course,
                 section: req.body.section
             });
 
             if (team) {
-                return res.status(400).json({ status: false, message: 'You already are in a team.', reload: true});
+                return res.status(200).json({ status: false, message: 'You already are in a team.', reload: true});
             } else {
-                members.push(req.body.user.uid);
+                members.push(req.user.uid);
             }
         }
         
@@ -68,78 +71,39 @@ teamRouter.post('/api/get-team-details', middlewareAuth, async (req, res) => {
         const team = await teamModel.findOne({ team_id: req.body.team_id });
         
         if (!team) {
-            return res.status(400).json({ status: false, message: 'Team not found.' });
+            return res.status(404).json({ status: false, message: 'Team not found.' });
 
-        } else {
-            let access = false;
-
-            if (req.body.user.position === 'Professor') {
-                for (let course of req.body.user.assigned_courses) {
-                    for (let section of course.sections) {
-
-                        if (team.course === course.course_code && team.section === section) {
-                            access = 'write';
-                            break;
-                        }
-                    }
-                }
-
-            } else if (req.body.user.position === 'Student') {
-                for (let course of req.body.user.enrolled_courses) {
-                    if (team.course === course.course_code && team.section === course.section) {
-
-                        if (team.members.includes(req.body.user.uid)) {
-                            access = 'write';
-                            break;
-                        } else {
-                            access = 'read';
-                            break;
-                        }
-                    }
-                }
-            }
-
-            team.members = await Promise.all(team.members.map(setTeamInfo));
-            team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
-
-            return res.status(200).json({ status: 'ok', team: team, access: access });
         }
+
+        const section = await sectionModel.findOne({
+            course_code: team.course,
+            section: team.section
+        }).select('professor students').lean();
+
+        let access = false;
+
+        if (req.user.position === 'Professor' && req.user.uid === section.professor) {
+            access = 'write';
+
+        } else if (req.user.position === 'Student') {
+            if (verifyStudent(team.members, req.user.uid)) {
+                access = 'write';
+            } else if (!verifyStudent(team.members, req.user.uid) && verifyStudent(section.students, req.user.uid)) {
+                access = 'read';
+            }
+        }
+
+        team.members = await Promise.all(team.members.map(setMemberInfo));
+        team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
+
+        return res.status(200).json({ status: 'ok', team: team, access: access });
     } catch(e) {
         res.status(500).json({ status: false, message: 'Error in retrieving team details.' });
         console.log(e);
     }
 });
 
-teamRouter.post('/api/get-included-students', middlewareAuth, async (req, res) => {
-    try {
-        const student_array = await studentModel.find({
-            enrolled_courses: {
-                $elemMatch: {
-                    course_code: req.body.course,
-                    section: req.body.section
-                }
-            }
-        });
-
-        const filtered_array = [];
-
-        student_array.forEach((student) => {    
-            filtered_array.push({ 
-                uid: student.uid,
-                first_name: student.first_name,
-                last_name: student.last_name
-            });
-        });
-        filtered_array.sort((a, b) => a.last_name.localeCompare(b.last_name));
-
-        return res.json({ status: 'ok', students: filtered_array, message: 'Reloaded students within the course.' });
-    } catch (e) {
-        res.status(500).json({ status: false, message: e });
-        console.log(e);
-    }
-});
-
-teamRouter.post('/api/add-member', async (req, res) => {
+teamRouter.post('/api/add-member', middlewareAuth, async (req, res) => {
     try {  
         const team = await teamModel.findOne({ 
             members: req.body.student_uid,  
@@ -162,7 +126,7 @@ teamRouter.post('/api/add-member', async (req, res) => {
     }
 });
 
-teamRouter.post('/api/remove-member', async (req, res) => {
+teamRouter.post('/api/remove-member', middlewareAuth, async (req, res) => {
     try {
         // const hasOngoingAct = await checkOngoingActivity(req.body.course, req.body.section, res)
 
@@ -181,7 +145,7 @@ teamRouter.post('/api/remove-member', async (req, res) => {
     }
 });
 
-teamRouter.post('/api/delete-team', async (req, res) => {
+teamRouter.post('/api/delete-team', middlewareAuth, async (req, res) => {
     try {
         // const hasOngoingAct = await checkOngoingActivity(req.body.course, req.body.section, res);
 

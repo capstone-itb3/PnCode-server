@@ -1,25 +1,31 @@
 const mongoose = require('mongoose');
 
 const sectionSchema = new mongoose.Schema({
-    year: {
+    course_code: {
         type: String,
         required: true,
     },
-    program: {
+    section: {
         type: String,
         required: true
     },
-    sections: {
-        type: [String],
-        required: true
-    },
-    courses_1stsem: {
-        type: [Object],
+    professor: {
+        type: String,
         required: false,
         default: []
     },
-    courses_2ndsem: {
-        type: [Object],
+    id_link: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    students: {
+        type: [String],
+        required: false,
+        default: []
+    },
+    requests: {
+        type: [String],
         required: false,
         default: []
     }

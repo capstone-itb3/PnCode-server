@@ -37,10 +37,6 @@ const assignedRoomSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    room_type: {
-        type: String,
-        required: true
-    },
     activity_id: {
         type: String,
         required: true

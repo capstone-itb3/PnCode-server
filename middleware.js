@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
+const studentModel = require('./models/students.model');
+const professorModel = require('./models/professors.model'); 
 
-const middlewareAuth = (req, res, next) => {
+const middlewareAuth = async (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
 
   if (!token) {
@@ -9,8 +11,31 @@ const middlewareAuth = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, 'secret123capstoneprojectdonothackimportant0987654321');
-    req.body.user = decoded;
+
+    if (decoded.position === 'Professor') {
+      const user = await professorModel.findOne({ uid: decoded.uid }).lean();
+
+      if (user) {
+        req.user = user;
+      } else {
+        res.status(401).json({ status: false, message: 'Invalid token.' });
+       }
+
+    } else if (decoded.position === 'Student') {
+      const user = await studentModel.findOne({ uid: decoded.uid }).lean();
+
+      if (user) {
+        req.user = user;
+      } else {
+        res.status(401).json({ status: false, message: 'Invalid token.' });
+      }
+      
+    } else {
+      res.status(401).json({ status: false, message: 'Invalid token.' });
+    }
+    
     next();
+    
   } catch (err) {
     res.status(401).json({ status: false, message: 'Token is not valid.' });
   }
