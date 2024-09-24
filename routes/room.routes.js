@@ -183,16 +183,29 @@ roomRouter.post('/api/create-room-solo', middlewareAuth, async (req, res) => {
 
         const created_solos = await soloRoomModel.find({ owner_id: req.user.uid });
 
+        const generateRoomName = () => {
+            const baseRoomName = `${req.user.first_name}'s Room ${new Date().toISOString().slice(5, 10)}`;
+            let suffix = '';
+            let counter = 1;
+        
+            while (created_solos.some(room => room.room_name === `${baseRoomName}${suffix}`)) {
+                suffix = `-${counter}`;
+                counter++;
+            }
+        
+            return `${baseRoomName}${suffix}`;
+        };
+        
         if (created_solos.length >= 3) {
             return res.status(400).json({ status: false, message: 'You can\'t create more than three (3) solo rooms.'})
         } else {
             await soloRoomModel.create({
                 room_id: new_id,
-                room_name: `${req.user.first_name}'s Room ${created_solos.length + 1}`,
+                room_name: generateRoomName(),
                 owner_id: req.user.uid,
             });    
         }
-                    
+                            
         return res.status(200).json({ status: 'ok', room_id: new_id, message: 'Room Success' });
     } catch (e) {
         console.log(e);
@@ -217,5 +230,17 @@ roomRouter.get('/api/get-solo-rooms', middlewareAuth, async (req, res) => {
         return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
     }   
 });
+
+roomRouter.post('/api/delete-room-solo', middlewareAuth, async (req, res) => {
+    try {
+        await soloRoomModel.deleteOne({ room_id: req.body.room_id });
+
+        return res.status(200).json({ status: 'ok', message: 'Room deleted successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }
+});
+
 
 module.exports = roomRouter;

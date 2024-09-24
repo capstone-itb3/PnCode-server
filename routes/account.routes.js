@@ -1,6 +1,7 @@
 const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 const sectionModel = require('../models/sections.model');
+const teamModel = require('../models/teams.model');
 const { tokenizer } = require('../utils/tokenizer');
 const middlewareAuth = require('../middleware');
 const { client }  = require('../database');
@@ -139,7 +140,7 @@ accountRouter.post('/api/get-assigned-courses', middlewareAuth, async (req, res)
     let courses = [];
     try {
         courses = await sectionModel.find({ professor: req.user.uid })
-                  .select('course_code section id_link students requests')
+                  .select('course_code section')
                   .lean();
 
         courses = await Promise.all(courses.map(setCourseInfoProfessor));
@@ -173,7 +174,7 @@ accountRouter.post('/api/request-course', middlewareAuth, async (req, res) => {
 
          if (section.students.includes(req.user.uid)) {
              return res.status(400).json({  status: false,
-                                             message: 'You are already enrolled in this course.' });
+                                             message: 'You have already joined this course.' });
          }
 
          if (section.requests.includes(req.user.uid)) {
@@ -273,6 +274,12 @@ accountRouter.post('/api/remove-student', middlewareAuth, async (req, res) => {
         await sectionModel.updateOne({ course_code: req.body.course_code, section: req.body.section }, {
             $pull: {
                 students: req.body.uid
+            }
+        });
+
+        await teamModel.updateOne({ course: req.body.course_code, section: req.body.section }, {
+            $pull: {
+                members: req.body.uid
             }
         });
 

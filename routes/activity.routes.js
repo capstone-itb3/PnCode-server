@@ -27,7 +27,7 @@ activityRouter.get('/api/get-activities', middlewareAuth, async (req, res) => {
 
 activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => {
     try {
-        if (req.body.activity_name.length > 30) {
+        if (req.body.activity_name.length > 100) {
             return res.status(400).json({ status: false, message: 'Activity name must be less than 30 characters.' });
         }
 
@@ -52,7 +52,7 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
             close_time: req.body.close_time,
         });
 
-        res.status(200).json({ status: 'ok', message: 'Activity created successfully.' });
+        res.status(200).json({ status: 'ok', activity_id: new_id, message: 'Activity created successfully.' });
     } catch (e) {
         console.log(e);
         return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
@@ -146,6 +146,19 @@ activityRouter.get('/api/get-activity-details', middlewareAuth, async (req, res)
         console.log(e);
         return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
     }   
+});
+
+activityRouter.post('/api/update-instructions', middlewareAuth, async (req, res) => {
+    try {
+        await activityModel.updateOne({ activity_id: req.body.activity_id }, {
+            instructions: req.body.instructions
+        });
+
+        return res.status(200).json({ status: 'ok', message: 'Instructions updated!'})
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }
 });
 
 activityRouter.post('/api/update-dates', middlewareAuth, async (req, res) => {

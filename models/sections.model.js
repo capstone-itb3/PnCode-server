@@ -14,11 +14,6 @@ const sectionSchema = new mongoose.Schema({
         required: false,
         default: []
     },
-    id_link: {
-        type: String,
-        required: true,
-        unique: true
-    },
     students: {
         type: [String],
         required: false,

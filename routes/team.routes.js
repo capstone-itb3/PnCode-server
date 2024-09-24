@@ -50,15 +50,17 @@ teamRouter.post('/api/create-team', middlewareAuth, async (req, res) => {
             }
         }
         
+        const new_id = uuid().toString();
+
         await teamModel.create({
-            team_id: uuid().toString(),
+            team_id: new_id,
             team_name: req.body.name,
             course: req.body.course,
             section: req.body.section,
             members: members
         });
         
-        return res.json({ status: 'ok', message: 'Team created successfully.' });
+        return res.json({ status: 'ok', team_id: new_id, message: 'Team created successfully.' });
 
     } catch (e) {
         res.status(500).json({ status: false, message: 'Error in creating team.' });
