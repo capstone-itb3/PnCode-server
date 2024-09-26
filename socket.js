@@ -160,36 +160,6 @@ function socketConnect(io) {
             }
         })
 
-        socket.on('preferred_theme', async ({ theme, user }) => {
-            try {
-                let token;
-                if (user.position === 'Student') {
-                    const current_user = await studentModel.findOneAndUpdate({ uid: user.uid }, { 
-                        $set: { preferences:  { theme: theme } }
-                    }, { new: true }).lean();
-
-                    
-    
-                    token = tokenizeStudent(current_user);
-                    
-                } else if (user.position === 'Professor') {
-                    const current_user = await professorModel.findOneAndUpdate({ uid: user.uid }, {
-                        $set: { preferences:  { theme: theme } }
-                    }, { new: true }).lean();
-    
-                    token = tokenizeProfessor(current_user);
-                }
-    
-                socket.emit('update_token', {
-                    status: 'ok',
-                    token: token,
-                    message: 'Preferred theme updated successfully'
-                });
-            } catch (e) {
-                console.log('preferred_theme Error: ' + e);
-            }
-        });
-
         socket.on('update_code', async ({file_id, user_id, code, line, store_history}) => {
             try {
                 let file = await fileModel.findOneAndUpdate({ file_id },{ 
@@ -210,7 +180,7 @@ function socketConnect(io) {
                                             file.history[file.history.length - 1]?.content === code 
                                             : false;
                         const closer_timestamp = !no_record ? 
-                                                 Date.now() - new Date(file.history[file.history.length - 1]?.createdAt) <= 360000 
+                                                 Date.now() - new Date(file.history[file.history.length - 1]?.createdAt) <= 300000 
                                                  : false;
 
                          if (no_record || (same_record || closer_timestamp) !== true) {

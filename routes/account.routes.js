@@ -159,9 +159,6 @@ accountRouter.post('/api/request-course', middlewareAuth, async (req, res) => {
         const courseCaps = String(req.body.course_code).toUpperCase();
         const sectionCaps = String(req.body.section).toUpperCase();
 
-        console.log(courseCaps);
-        console.log(sectionCaps);
-
         const section = await sectionModel.findOne({ 
             course_code: courseCaps,
             section: sectionCaps
@@ -207,9 +204,6 @@ accountRouter.post('/api/get-included-students', middlewareAuth, async (req, res
         let students = await Promise.all(section.students.map(setMemberInfo));
         let requests = [];
         
-
-        console.log(section)
-
         if (req.body.list === 'all') {
             requests = await Promise.all(section.requests.map(setMemberInfo));
         }

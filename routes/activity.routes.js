@@ -30,6 +30,24 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
         if (req.body.activity_name.length > 100) {
             return res.status(400).json({ status: false, message: 'Activity name must be less than 30 characters.' });
         }
+        
+        if (req.body.open_time === '') {
+            return res.status(400).json({ status: false, message: 'Please complete the input for open time.' });
+        } else if (req.body.close_time === '') {
+            return res.status(400).json({ status: false, message: 'Please complete the input for close time.' });
+        }
+
+        const timeToMinutes = (timeString) => {
+            const [hours, minutes] = timeString.split(':').map(Number);
+            return hours * 60 + minutes;
+        };
+    
+        const openMinutes = timeToMinutes(req.body.open_time);
+        const closeMinutes = timeToMinutes(req.body.close_time);
+    
+        if (closeMinutes <= openMinutes) {
+            return res.status(400).json({ status: false, message: 'Close time must be no earlier than open time.' });
+        }
 
         let already_exists = true, 
             new_id = 0;
@@ -154,6 +172,16 @@ activityRouter.post('/api/update-instructions', middlewareAuth, async (req, res)
             instructions: req.body.instructions
         });
 
+        const rooms = await assignedRoomModel.find({ activity_id: req.body.activity_id })
+        .select('room_id')
+        .lean();
+        
+        for (const room of rooms) {
+            req.io?.in(room.room_id)?.emit('instructions_updated', {
+                new_instructions: req.body.instructions
+            });
+        }
+    
         return res.status(200).json({ status: 'ok', message: 'Instructions updated!'})
     } catch (e) {
         console.log(e);
@@ -163,11 +191,40 @@ activityRouter.post('/api/update-instructions', middlewareAuth, async (req, res)
 
 activityRouter.post('/api/update-dates', middlewareAuth, async (req, res) => {
     try {
+
+        if (req.body.open_time === '') {
+            return res.status(400).json({ status: false, message: 'Please complete the input for open time.' });
+        } else if (req.body.close_time === '') {
+            return res.status(400).json({ status: false, message: 'Please complete the input for close time.' });
+        }
+
+        const timeToMinutes = (timeString) => {
+            const [hours, minutes] = timeString.split(':').map(Number);
+            return hours * 60 + minutes;
+        };
+    
+        const openMinutes = timeToMinutes(req.body.open_time);
+        const closeMinutes = timeToMinutes(req.body.close_time);
+    
+        if (closeMinutes <= openMinutes) {
+            return res.status(400).json({ status: false, message: 'Close time must be no earlier than open time.' });
+        }
+    
         await activityModel.updateOne({ activity_id: req.body.activity_id }, {
             open_time: req.body.open_time,
             close_time: req.body.close_time,
         });
-
+        const rooms = await assignedRoomModel.find({ activity_id: req.body.activity_id })
+        .select('room_id')
+        .lean();
+        
+        for (const room of rooms) {
+            req.io?.in(room.room_id)?.emit('dates_updated', {
+                new_open_time: req.body.open_time,
+                new_close_time: req.body.close_time,
+            });
+        }
+    
         return res.status(200).json({ status: 'ok', message: 'Activity is updated successfully.' });
     } catch (e) {
         console.log(e);
@@ -197,6 +254,5 @@ activityRouter.post('/api/delete-activity', middlewareAuth, async (req, res) => 
         return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
     }   
 });
-    
 
 module.exports = activityRouter;

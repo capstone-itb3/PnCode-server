@@ -69,18 +69,27 @@ app.use((req, res, next) => {
     next();
 });
 
+const io = new Server(server, {
+  cors: {
+      origin: "*",
+      // origin: "http://localhost:5173",
+      methods: ["GET", "POST"]
+  }
+});
+
+//*Use io within Rest API routes
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
 app.use(accountRouter);
 app.use(roomRouter);
 app.use(teamRouter);
 app.use(activityRouter);
 
-const io = new Server(server, {
-    cors: {
-        origin: "*",
-        // origin: "http://localhost:5173",
-        methods: ["GET", "POST"]
-    }
-});
+
+
 
 //*Connects to the database
 mongoose.connect(uri).then(() => {

@@ -3,6 +3,7 @@ const professorModel = require('../models/professors.model');
 const activityModel = require('../models/activities.model');
 const teamModel = require('../models/teams.model');
 const sectionModel = require('../models/sections.model');
+const assignedRoomModel = require('../models/assigned_rooms.model');
 const { setMemberInfo } = require('../utils/setInfo');
 const { verifyStudent, verifyProfessor } = require('../utils/verifyAccess');
 const middlewareAuth = require('../middleware');
@@ -21,7 +22,7 @@ teamRouter.get('/api/get-teams', middlewareAuth, async (req, res) => {
         
         return res.status(200).json({ status: 'ok', teams: teams });
     } catch (err) {
-        res.status(500).json({ status: 'error', message: 'Error. Retrieving teams failed.' });
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
     }
 });
 
@@ -63,8 +64,8 @@ teamRouter.post('/api/create-team', middlewareAuth, async (req, res) => {
         return res.json({ status: 'ok', team_id: new_id, message: 'Team created successfully.' });
 
     } catch (e) {
-        res.status(500).json({ status: false, message: 'Error in creating team.' });
         console.log(e);
+        res.status(500).json({ status: false, message: '500 Internal Server Error.' });
     }
 });
 
@@ -100,8 +101,39 @@ teamRouter.post('/api/get-team-details', middlewareAuth, async (req, res) => {
 
         return res.status(200).json({ status: 'ok', team: team, access: access });
     } catch(e) {
-        res.status(500).json({ status: false, message: 'Error in retrieving team details.' });
         console.log(e);
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+    }
+});
+
+teamRouter.post('/api/update-team-name', middlewareAuth, async (req, res) => {
+    try {
+        const team = await teamModel.findOne({ team_id: req.body.team_id });
+
+        if (!team) {
+            return res.status(404).json({ status: false, message: 'Team not found.' });
+        }
+
+        if (req.body.team_name.length > 30) {
+            return res.status(400).json({ status: false, message: 'Team name must be less than 30 characters.' });
+
+        } else if (req.body.team_name.length < 3) {
+            return res.status(400).json({ status: false, message: 'Team name must be at least 3 characters.' });
+        }
+
+        await teamModel.updateOne({ team_id: req.body.team_id }, {
+            $set: { team_name: req.body.team_name }
+        });
+
+        await assignedRoomModel.updateMany({ owner_id: req.body.team_id }, {
+            $set: { room_name: `${req.body.team_name}'s Room` }
+        });
+
+        return res.status(200).json({ status: 'ok', message: 'Team name updated successfully.' });
+
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
     }
 });
 
@@ -123,67 +155,33 @@ teamRouter.post('/api/add-member', middlewareAuth, async (req, res) => {
             return res.status(200).json({ status: 'ok', message: 'Student added to team.' });
         }
     } catch (e) {
-        res.status(500).json({ status: false, message: 'Error in adding a member.' });
         console.log(e);
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
     }
 });
 
 teamRouter.post('/api/remove-member', middlewareAuth, async (req, res) => {
     try {
-        // const hasOngoingAct = await checkOngoingActivity(req.body.course, req.body.section, res)
+        await teamModel.updateOne({ team_id: req.body.team_id }, 
+            { $pull: { members: req.body.student_uid }
+        });
 
-        // if (hasOngoingAct) {
-        //     return res.status(400).json({ status: false, message: 'You can\'t remove a member because there is an ongoing activity.' });
-        // } else {
-            await teamModel.updateOne({ team_id: req.body.team_id }, 
-                { $pull: { members: req.body.student_uid }
-            });
-
-            return res.status(200).json({ status: 'ok', message: 'Student is removed from the  team.' });
-        // }
+        return res.status(200).json({ status: 'ok', message: 'Student is removed from the  team.' });
     } catch(e) {
-        res.status(500).json({ status: false, message: 'Error in removing a member.' });
         console.log(e)
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
     }
 });
 
 teamRouter.post('/api/delete-team', middlewareAuth, async (req, res) => {
     try {
-        // const hasOngoingAct = await checkOngoingActivity(req.body.course, req.body.section, res);
-
-        // if (hasOngoingAct) {
-        //     return res.status(400).json({ status: false, message: 'You can\'t remove a team because there is an ongoing activity.' });
-
-        // } else {
-            await teamModel.deleteOne({ team_id: req.body.team_id });
-            
-            return res.status(200).json({ status: 'ok', message: 'Team deleted successfully.' });
-        // }
+        await teamModel.deleteOne({ team_id: req.body.team_id });
+        
+        return res.status(200).json({ status: 'ok', message: 'Team deleted successfully.' });
     } catch (e) {
-        res.status(500).json({ status: false, message: 'Error in deleting team.' });
         console.log(e);
+        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
     }
 });
-
-// async function checkOngoingActivity(course, section, res) {
-//     try {
-//         const activities = await activityModel.find({
-//             course_code: course,
-//             section: section,
-//         });   
-        
-//         for (let act of activities) {
-//             if (new Date(act.deadline) >= Date.now()) {
-         
-//                 return true;
-//             }
-//         }
-//         return false;
-
-//     } catch (e) {
-//         res.status(500).json({ status: false, message: 'Internal Server Error.' });
-//         console.log(e);
-//     }
-// }
 
 module.exports = teamRouter;
