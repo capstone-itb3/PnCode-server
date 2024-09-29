@@ -12,37 +12,17 @@ const { uri }  = require('./database');
 const { Server } = require('socket.io');
 const server = http.createServer(app);
 
-//*Websocket module imports
-const WebSocket = require('ws');
-
-//*Utilities
-const { v4: uuid } = require('uuid');
-const jwt = require('jsonwebtoken');
-//const multer = require('multer');
-
-//*Models
-const studentModel = require('./models/students.model');
-const professorModel = require('./models/professors.model');
-const courseModel = require('./models/courses.model');
-const sectionModel = require('./models/sections.model');
-const soloRoomModel = require('./models/solo_rooms.model');
-const assignedRoomModel = require('./models/assigned_rooms.model');
-const teamModel = require('./models/teams.model');
-const activityModel = require('./models/activities.model');
-
 //*Routes
 const accountRouter = require('./routes/account.routes');
 const roomRouter = require('./routes/room.routes');
 const teamRouter = require('./routes/team.routes');
 const activityRouter = require('./routes/activity.routes');
+const adminRouter = require('./admin/admin.routes');
 
 //*Socket.io connection
 const socketConnect = require('./socket');
 
-//*Authentication middleware
-const middlewareAuth = require('./middleware');
-
-//*PORT the server will use
+//*PORT the server uses
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
@@ -87,9 +67,7 @@ app.use(accountRouter);
 app.use(roomRouter);
 app.use(teamRouter);
 app.use(activityRouter);
-
-
-
+app.use(adminRouter);
 
 //*Connects to the database
 mongoose.connect(uri).then(() => {

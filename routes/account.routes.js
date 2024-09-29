@@ -4,7 +4,6 @@ const sectionModel = require('../models/sections.model');
 const teamModel = require('../models/teams.model');
 const { tokenizer } = require('../utils/tokenizer');
 const middlewareAuth = require('../middleware');
-const { client }  = require('../database');
 const { setCourseInfoStudent, setCourseInfoProfessor, setMemberInfo } = require('../utils/setInfo');
 
 let customAlphabet;
