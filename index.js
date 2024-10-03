@@ -14,10 +14,12 @@ const server = http.createServer(app);
 
 //*Routes
 const accountRouter = require('./routes/account.routes');
+const classRouter = require('./routes/class.routes');
 const roomRouter = require('./routes/room.routes');
 const teamRouter = require('./routes/team.routes');
 const activityRouter = require('./routes/activity.routes');
 const adminRouter = require('./admin/admin.routes');
+
 
 //*Socket.io connection
 const socketConnect = require('./socket');
@@ -64,6 +66,7 @@ app.use((req, res, next) => {
 });
 
 app.use(accountRouter);
+app.use(classRouter);
 app.use(roomRouter);
 app.use(teamRouter);
 app.use(activityRouter);

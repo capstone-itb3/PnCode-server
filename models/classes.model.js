@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
-const sectionSchema = new mongoose.Schema({
+const classesSchema = new mongoose.Schema({
+    class_id: {
+        type: String,
+        required: true,
+        unique: true
+    },
     course_code: {
         type: String,
         required: true,
@@ -12,7 +17,7 @@ const sectionSchema = new mongoose.Schema({
     professor: {
         type: String,
         required: false,
-        default: []
+        default: ''
     },
     students: {
         type: [String],
@@ -24,8 +29,8 @@ const sectionSchema = new mongoose.Schema({
         required: false,
         default: []
     }
-});
+}, { timestamps: true, collection: 'classes' });
 
-const sectionModel = mongoose.model('sections', sectionSchema);
+const classModel = mongoose.model('classes', classesSchema);
 
-module.exports = sectionModel;
+module.exports = classModel;

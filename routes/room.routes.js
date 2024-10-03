@@ -5,10 +5,11 @@ const assignedRoomModel = require('../models/assigned_rooms.model');
 const teamModel = require('../models/teams.model');
 const activityModel = require('../models/activities.model');
 const fileModel = require('../models/files.model');
-const sectionModel = require('../models/sections.model');
+const classModel = require('../models/classes.model');
 const { setMemberInfo } = require('../utils/setInfo');
-const { verifyStudent, verifyProfessor } = require('../utils/verifyAccess');
 const middlewareAuth = require('../middleware');
+const { verifyStudent, verifyProfessor } = require('../utils/verifyAccess');
+const generateNanoId = require('../utils/generateNanoId');
 
 const express = require('express');
 const roomRouter = express.Router();
@@ -42,7 +43,7 @@ roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, r
             }
 
         } else if (req.user.position === 'Professor') {
-            if (!verifyProfessor(activity.course_code, activity.section, req.user.uid)) {
+            if (!verifyProfessor(activity.class_id, req.user.uid)) {
                 return res.status(403).json({ status: false, message: 'Not a part of this room.'});
             }
         }
@@ -124,7 +125,7 @@ roomRouter.get('/api/view-output', middlewareAuth, async (req, res) => {
             } if (req.user.position === 'Professor') {
                 const activity = await activityModel.findOne({ activity_id: room.activity_id });
                 
-                if (!verifyProfessor(activity.course_code, activity.section, req.user.uid)) {
+                if (!verifyProfessor(activity.class_id, req.user.uid)) {
                     return res.status(403).json({ status: false, message: 'Not a part of this room.'});
                 }
             }
@@ -174,7 +175,7 @@ roomRouter.post('/api/create-room-solo', middlewareAuth, async (req, res) => {
         new_id = 0;
 
         while (already_exists) {
-            new_id = uuid().toString();
+            new_id = generateNanoId();
            
             already_exists = await soloRoomModel.findOne({
                 room_id: new_id
@@ -185,19 +186,18 @@ roomRouter.post('/api/create-room-solo', middlewareAuth, async (req, res) => {
 
         const generateRoomName = () => {
             const baseRoomName = `${req.user.first_name}'s Room ${new Date().toISOString().slice(5, 10)}`;
-            let suffix = '';
-            let counter = 1;
+            let suffix = '', counter = 1;
         
             while (created_solos.some(room => room.room_name === `${baseRoomName}${suffix}`)) {
                 suffix = `-${counter}`;
                 counter++;
-            }
-        
+            } 
             return `${baseRoomName}${suffix}`;
         };
         
         if (created_solos.length >= 3) {
             return res.status(400).json({ status: false, message: 'You can\'t create more than three (3) solo rooms.'})
+        
         } else {
             await soloRoomModel.create({
                 room_id: new_id,

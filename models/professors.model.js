@@ -19,6 +19,7 @@ const professorSchema = new mongoose.Schema({
     uid: {
         type: String,
         required: true,
+        unique: true,
     },
     email: {
         type: String,
@@ -46,11 +47,6 @@ const professorSchema = new mongoose.Schema({
         type: [notificationSchema],
         required: false,
         default: []
-    },
-    preferences: {
-        type: Object,
-        required: false,
-        default: { theme: 'dark' }
     },
 }, { timestamps: true, collection: 'professors' });
 

@@ -10,11 +10,7 @@ const activitySchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    course_code: {
-        type: String,
-        required: true
-    },
-    section: {
+    class_id: {
         type: String,
         required: true
     },

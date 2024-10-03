@@ -1,11 +1,13 @@
 const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
+const classModel = require('../models/classes.model');
 const teamModel = require('../models/teams.model');
 const activityModel = require('../models/activities.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const fileModel = require('../models/files.model');
 const middlewareAuth = require('../middleware');
 const { verifyStudent, verifyProfessor } = require('../utils/verifyAccess');
+const generateNanoId = require('../utils/generateNanoId');
 
 const express = require('express');
 const activityRouter = express.Router();
@@ -13,7 +15,7 @@ const { v4: uuid } = require('uuid');
 
 activityRouter.get('/api/get-activities', middlewareAuth, async (req, res) => {
     try { 
-        const activities = await activityModel.find({ course_code: req.query.course, section: req.query.section });
+        const activities = await activityModel.find({ class_id: req.query.class_id });
         
         activities.sort((a, b) => b?.createdAt - a?.createdAt);
 
@@ -21,7 +23,8 @@ activityRouter.get('/api/get-activities', middlewareAuth, async (req, res) => {
 
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({   status: false, 
+                                        message: 'Server error. Retrieving activities failed.' });
     }   
 });
 
@@ -53,18 +56,18 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
             new_id = 0;
 
         while (already_exists) {
-            new_id = uuid().toString();
-           
+            new_id = generateNanoId();
+            
             already_exists = await activityModel.findOne({
                 activity_id: new_id
             });
         }
+    
         
         await activityModel.create({
             activity_id: new_id,
             activity_name: req.body.activity_name,
-            course_code: req.body.course,
-            section: req.body.section,
+            class_id: req.body.class_id,
             instructions: req.body.instructions,
             open_time: req.body.open_time,
             close_time: req.body.close_time,
@@ -73,7 +76,8 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
         res.status(200).json({ status: 'ok', activity_id: new_id, message: 'Activity created successfully.' });
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({   status: false, 
+                                        message: 'Server error. Creating activity failed.' });
     }   
 });
 
@@ -82,8 +86,7 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
     try {
         const team = await teamModel.findOne({
             members: req.user.uid,
-            course: req.query.course,
-            section: req.query.section
+            class_id: req.query.class_id,
         });
 
         if (!team) {
@@ -101,7 +104,7 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
             return res.status(200).json({ status: 'ok', room_id: assigned_room.room_id, message: 'Room found.' });
         }
 
-        const new_room = uuid().toString();
+        const new_room = generateNanoId();
 
         await assignedRoomModel.create({
             room_id: new_room,
@@ -132,7 +135,8 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
         return res.status(200).json({ status: 'ok', room_id: new_room, message: 'New room created for the activity' });
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({   status: false, 
+                                        message: 'Server error. Visiting activity failed.' });
     }   
 });
 
@@ -150,19 +154,27 @@ activityRouter.get('/api/get-activity-details', middlewareAuth, async (req, res)
             return res.status(404).json({ status: false, message: 'Activity not found.' });
         }
 
-        if (!verifyProfessor(activity.course_code, activity.section, req.user.uid)) {
+        if (!verifyProfessor(activity.class_id, req.user.uid)) {
             return res.status(403).json({ status: false, message: 'You do not have access to this resource.' });
         }
 
-        const rooms = await assignedRoomModel.find({
-            activity_id: req.query.activity_id
-        }).lean();
-        
-        return res.status(200).json({ status: 'ok', activity: activity, rooms: rooms});            
+        const class_data = await classModel.findOne({ class_id: activity.class_id })
+        .select('course_code section')
+        .lean();
+
+        const rooms = await assignedRoomModel.find({ activity_id: req.query.activity_id })
+        .lean();
+
+        return res.status(200).json({   status: 'ok', 
+                                        activity: activity, 
+                                        rooms: rooms,
+                                        course_code: class_data.course_code,
+                                        section: class_data.course_code });
         
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({   status: false, 
+                                        message: 'Server error. Retrieving activity details failed.' });
     }   
 });
 
@@ -185,7 +197,8 @@ activityRouter.post('/api/update-instructions', middlewareAuth, async (req, res)
         return res.status(200).json({ status: 'ok', message: 'Instructions updated!'})
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({   status: false, 
+                                        message: 'Server error. Updating instructions failed.' });
     }
 });
 
@@ -228,7 +241,8 @@ activityRouter.post('/api/update-dates', middlewareAuth, async (req, res) => {
         return res.status(200).json({ status: 'ok', message: 'Activity is updated successfully.' });
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({   status: false, 
+                                        message: 'Server error. Updating access timeframes failed.' });
     }   
 });
 
@@ -251,7 +265,8 @@ activityRouter.post('/api/delete-activity', middlewareAuth, async (req, res) => 
         return res.status(200).json({ status: 'ok', message: 'Activity deleted successfully.' });
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({   status: false, 
+                                        message: 'Server error. Deleting activity failed.' });
     }   
 });
 

@@ -10,11 +10,7 @@ const teamSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  course: {
-    type: String,
-    required: true
-  },
-  section: {
+  class_id: {
     type: String,
     required: true
   },

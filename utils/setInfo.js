@@ -2,40 +2,42 @@ const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 const courseModel = require('../models/courses.model');
 
-async function setCourseInfoStudent(course) {
-    const data = await courseModel.findOne({ course_code: course.course_code })
+async function setCourseInfoStudent(class_data) {
+    const data = await courseModel.findOne({ course_code: class_data.course_code })
                  .select('course_title');
 
-    const professor = await professorModel.findOne({ uid: course.professor })
+    const professor = await professorModel.findOne({ uid: class_data.professor })
                       .select('first_name last_name')
                       .lean();
 
     return {
-        course_code: course.course_code,
-        section: course.section,
+        class_id: class_data.class_id,
+        course_code: class_data.course_code,
+        section: class_data.section, 
         course_title: data.course_title,
         professor: professor ? `${professor.first_name} ${professor.last_name}` : 'TBA'
     }
 }
 
-async function setCourseInfoProfessor(course) {
-    const title = await courseModel.findOne({ course_code: course.course_code })
+async function setCourseInfoProfessor(class_data) {
+    const title = await courseModel.findOne({ course_code: class_data.course_code })
                  .select('course_title');
 
-    const students = await studentModel.find({ uid: { $in: course.students } })
+    const students = await studentModel.find({ uid: { $in: class_data.students } })
                      .select('uid first_name last_name')
                      .lean();
     
-    const requests = await studentModel.find({ uid: { $in: course.requests } })
+    const requests = await studentModel.find({ uid: { $in: class_data.requests } })
                      .select('uid first_name last_name')
                      .lean();
 
     return {
-        course_code: course.course_code,
-        section: course.section,
+        class_id: class_data.class_id,
+        course_code: class_data.course_code,
+        section: class_data.section,
         course_title: title.course_title,
         students: students,
-        requests: requests
+        requests: requests,
     }
 }
 
@@ -44,7 +46,7 @@ async function setMemberInfo(member) {
     const user = await studentModel.findOne({ uid: member })
     .select('uid first_name last_name')
     .lean();
-    
+
     return {
         uid: user.uid,
         first_name: user.first_name,
