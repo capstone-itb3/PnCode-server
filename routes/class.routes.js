@@ -94,7 +94,6 @@ classRouter.post('/api/request-course', middlewareAuth, async (req, res) => {
 
 classRouter.post('/api/get-included-students', middlewareAuth, async (req, res) => {
     try {
-
         const class_data = await classModel.findOne({ class_id: req.body.class_id })
         .select('students requests')
         .lean();
