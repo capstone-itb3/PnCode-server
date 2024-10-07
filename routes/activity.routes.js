@@ -31,7 +31,7 @@ activityRouter.get('/api/get-activities', middlewareAuth, async (req, res) => {
 activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => {
     try {
         if (req.body.activity_name.length > 100) {
-            return res.status(400).json({ status: false, message: 'Activity name must be less than 30 characters.' });
+            return res.status(400).json({ status: false, message: 'Activity name must be less than 100 characters.' });
         }
         
         if (req.body.open_time === '') {
@@ -204,7 +204,6 @@ activityRouter.post('/api/update-instructions', middlewareAuth, async (req, res)
 
 activityRouter.post('/api/update-dates', middlewareAuth, async (req, res) => {
     try {
-
         if (req.body.open_time === '') {
             return res.status(400).json({ status: false, message: 'Please complete the input for open time.' });
         } else if (req.body.close_time === '') {

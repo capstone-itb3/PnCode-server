@@ -248,9 +248,16 @@ adminRouter.post('/api/admin/create-student', middlewareAdmin, async (req, res) 
     try {
         const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(req.body.password, salt);                
-     
+        
+        let new_id = 0, already_exists = true;
+        while (already_exists) {
+            new_id = generateNanoId();
+            already_exists = await studentModel.findOne({ uid: new_id });
+            !already_exists ? already_exists = await professorModel.findOne({ uid: new_id }) : null;            
+        }
+
         await studentModel.create({
-            uid: generateNanoId(),
+            uid: new_id,
             email: req.body.email,
             password: passwordHash,
             first_name: req.body.first_name,
@@ -260,6 +267,7 @@ adminRouter.post('/api/admin/create-student', middlewareAdmin, async (req, res) 
         });
 
         return res.status(200).json({   status: 'ok', 
+                                        uid: new_id,
                                         message: 'A new student account has been created.'});
     } catch (e) {
         console.log(e);
@@ -355,8 +363,15 @@ adminRouter.post('/api/admin/create-professor', middlewareAdmin, async (req, res
         const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(req.body.password, salt);                
 
+        let new_id = 0, already_exists = true;
+        while (already_exists) {
+            new_id = generateNanoId();
+            already_exists = await studentModel.findOne({ uid: new_id });
+            !already_exists ? already_exists = await professorModel.findOne({ uid: new_id }) : null;            
+        }
+
         await professorModel.create({
-            uid: generateNanoId(),
+            uid: new_id,
             email: req.body.email,
             password: passwordHash,
             first_name: req.body.first_name,
@@ -366,6 +381,7 @@ adminRouter.post('/api/admin/create-professor', middlewareAdmin, async (req, res
         });
 
         return res.status(200).json({   status: 'ok', 
+                                        uid: new_id,
                                         message: 'A new professor account has been created.'});
     } catch (e) {
         console.log(e);
@@ -453,6 +469,7 @@ adminRouter.post('/api/admin/create-course', middlewareAdmin, async (req, res) =
         });
 
         return res.status(200).json({   status: 'ok',
+                                        course_code: req.body.course_code,
                                         message: 'A new course has been created.'});
     } catch (e) {
         console.log(e);
@@ -532,6 +549,7 @@ adminRouter.post('/api/admin/create-class', middlewareAdmin, async (req, res) =>
         }); 
 
         return res.status(200).json({   status: 'ok',
+                                        class_id: new_id,
                                         message: 'A new class has been created.'});
     } catch (e) {
         console.log(e);
@@ -750,7 +768,9 @@ adminRouter.post('/api/admin/create-team', middlewareAdmin, async (req, res) => 
             members: []
         });
 
-        return res.status(200).json({  status: 'ok', message: 'Team created successfully.' });
+        return res.status(200).json({   status: 'ok', 
+                                        team_id: new_id,
+                                        message: 'Team created successfully.' });
 
     } catch (e) {
         console.log(e);
@@ -876,7 +896,134 @@ adminRouter.post('/api/admin/remove-member', middlewareAdmin, async (req, res) =
     }
 });
 
+//*POST function to create an activity
+adminRouter.post('/api/admin/create-activity', middlewareAdmin, async (req, res) => {
+    try {
+        if (req.body.activity_name.length > 100) {
+            return res.status(400).json({ status: false, message: 'Activity name must be less than 100 characters.' });
+        }
+        
+        if (req.body.open_time === '') {
+            return res.status(400).json({ status: false, message: 'Please complete the input for open time.' });
+        } else if (req.body.close_time === '') {
+            return res.status(400).json({ status: false, message: 'Please complete the input for close time.' });
+        }
+
+        const timeToMinutes = (timeString) => {
+            const [hours, minutes] = timeString.split(':').map(Number);
+            return hours * 60 + minutes;
+        };
+    
+        const openMinutes = timeToMinutes(req.body.open_time);
+        const closeMinutes = timeToMinutes(req.body.close_time);
+    
+        if (closeMinutes <= openMinutes) {
+            return res.status(400).json({ status: false, message: 'Close time must be no earlier than open time.' });
+        }
+
+        const class_data = await classModel.findOne({ class_id: req.body.class_id })
+                           .select('class_id');
+        if (!class_data) {
+            return res.status(400).json({ status: false, message: 'Class not found.' });
+        }
+
+        let new_id = 0, already_exists = true;
+
+        while (already_exists) {
+            new_id = generateNanoId();      
+            already_exists = await activityModel.findOne({
+                activity_id: new_id
+            });
+        }
+    
+        await activityModel.create({
+            activity_id: new_id,
+            activity_name: req.body.activity_name,
+            class_id: req.body.class_id,
+            instructions: req.body.instructions,
+            open_time: req.body.open_time,
+            close_time: req.body.close_time,
+        });
+
+        res.status(200).json({  status: 'ok', 
+                                activity_id: new_id, 
+                                message: 'Activity created successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Creating activity failed.' });
+    }
+});
+
+//*POST function to update an activity
+adminRouter.post('/api/admin/update-activity', middlewareAdmin, async (req, res) => {
+    try {
+        if (req.body.activity_name.length < 3) {
+            return res.status(400).json({ status: false, message: 'Activity name must be at least 3 characters.' });
+        } else if (req.body.activity_name.length > 100) {
+            return res.status(400).json({ status: false, message: 'Activity name must be less than 100 characters.' });
+        }
+
+        if (req.body.open_time === '') {
+            return res.status(400).json({ status: false, message: 'Please complete the input for open time.' });
+        } else if (req.body.close_time === '') {
+            return res.status(400).json({ status: false, message: 'Please complete the input for close time.' });
+        }
+
+        const timeToMinutes = (timeString) => {
+            const [hours, minutes] = timeString.split(':').map(Number);
+            return hours * 60 + minutes;
+        };
+
+        const openMinutes = timeToMinutes(req.body.open_time);
+        const closeMinutes = timeToMinutes(req.body.close_time);
+    
+        if (closeMinutes <= openMinutes) {
+            return res.status(400).json({ status: false, message: 'Close time must be no earlier than open time.' });
+        }
+
+        const activity = await activityModel.findOne({ activity_id: req.body.activity_id })
+                         .select('class_id');
+        if (!activity) {
+            return res.status(400).json({ status: false, message: 'Activity not found.' });
+        }
+
+        await activityModel.updateOne({ activity_id: req.body.activity_id }, {
+            $set: {
+                activity_name: req.body.activity_name,
+                instructions: req.body.instructions,
+                open_time: req.body.open_time,
+                close_time: req.body.close_time,
+            }
+        });
+
+        const rooms = await assignedRoomModel.find({ activity_id: req.body.activity_id })
+        .select('room_id')
+        .lean();
+        
+        for (const room of rooms) {
+            req.io?.in(room.room_id)?.emit('dates_updated', {
+                new_open_time: req.body.open_time,
+                new_close_time: req.body.close_time,
+            });
+        }
+    
+        for (const room of rooms) {
+            req.io?.in(room.room_id)?.emit('instructions_updated', {
+                new_instructions: req.body.instructions
+            });
+        }
+    
+        return res.status(200).json({ status: 'ok', message: 'Instructions updated!'})
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Updating activity failed.' });
+    }
+});
+
 //*POST function to delete a course
+//TODO: delete all teams, rooms, and activities that are related to the course
 adminRouter.post('/api/admin/delete-course', middlewareAdmin, async (req, res) => {
     try {
         await courseModel.deleteOne({ course_code: req.body.course_code });
@@ -894,6 +1041,7 @@ adminRouter.post('/api/admin/delete-course', middlewareAdmin, async (req, res) =
 });
 
 //*POST function to delete a class
+//TODO: delete all teams, rooms, and activities that are related to the class
 adminRouter.post('/api/admin/delete-class', middlewareAdmin, async (req, res) => {
     try {
         await classModel.deleteOne({ class_id: req.body.class_id });
@@ -911,6 +1059,7 @@ adminRouter.post('/api/admin/delete-class', middlewareAdmin, async (req, res) =>
 });
 
 //*POST function to delete a team
+//TODO: delete all rooms that are related to the team
 adminRouter.post('/api/admin/delete-team', middlewareAdmin, async (req, res) => {
     try {
         await teamModel.deleteOne({ team_id: req.body.team_id });
@@ -924,7 +1073,6 @@ adminRouter.post('/api/admin/delete-team', middlewareAdmin, async (req, res) => 
                                         message: 'Server error. Deleting team failed.' });
     }
 });
-
 
 
 module.exports = adminRouter;

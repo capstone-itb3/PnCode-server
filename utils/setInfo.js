@@ -82,15 +82,18 @@ async function setMessageInfo(message) {
 }
 
 async function setFeedbackInfo(feedback) {
-    const user = await professorModel.findOne({ uid: feedback.professor_uid })
-    .select('uid first_name last_name')
-    .lean();
+    const professor = await professorModel.findOne({ uid: feedback.professor_uid })
+                      .select('uid first_name last_name')
+                      .lean();
+
+    feedback.reacts = await Promise.all(feedback.reacts.map(setMemberInfo));
 
     return {
         feedback_body: feedback.feedback_body,
-        professor_uid: user.uid,
-        first_name: user.first_name,
-        last_name: user.last_name,
+        professor_uid: professor.uid,
+        reacts: feedback.reacts,
+        first_name: professor.first_name,
+        last_name: professor.last_name,
         createdAt: feedback.createdAt
     }
 }

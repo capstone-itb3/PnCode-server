@@ -453,7 +453,9 @@ function socketConnect(io) {
 
         socket.on('load_feedback', async ({ room_id }) => {
             try {
-                const room = await assignedRoomModel.findOne({ room_id: room_id }).lean();
+                const room = await assignedRoomModel.findOne({ room_id: room_id })
+                             .select('feedback')
+                             .lean();
                 
                 room.feedback = await Promise.all(room.feedback.map(setFeedbackInfo));
                 room.feedback.sort((a, b) => b.createdAt - a.createdAt);
@@ -480,6 +482,7 @@ function socketConnect(io) {
                 let feed = {
                     feedback_body: new_feedback,
                     professor_uid: user_id,
+                    reacts: [],
                     createdAt: Date.now(),
                 };
 
@@ -498,6 +501,28 @@ function socketConnect(io) {
 
             } catch (e) {
                 console.log('submit_feedback Error:' + e);
+            }
+        });
+
+        socket.on('react_to_feedback', async ({ room_id, createdAt, user_id }) => {
+            try {
+                const room = await assignedRoomModel.findOne({ room_id: room_id, 'feedback.createdAt': createdAt })
+                             .select('feedback')
+                             .lean();
+                const feed = room.feedback.find(feed => new Date(feed.createdAt).toISOString() === new Date(createdAt).toISOString());
+
+                if (!feed.reacts.includes(user_id)) {
+                    await assignedRoomModel.updateOne({ room_id, 'feedback.createdAt': createdAt }, {
+                        $push: { 'feedback.$.reacts': user_id }
+                    });
+
+                    io.to(room_id).emit('submit_feedback_result', {
+                        status: 'ok',
+                        action: 'react'
+                    });
+                }
+            } catch (e) {
+                console.log('react_to_feedback Error:' + e);
             }
         });
 

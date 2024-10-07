@@ -9,6 +9,11 @@ const feedbackSchema = new mongoose.Schema({
     professor_uid: {
         type: String,
         required: true
+    },
+    reacts: {
+        type: [String],
+        required: false,
+        default: []
     }
 }, { timestamps: true });
 
