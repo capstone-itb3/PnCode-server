@@ -163,27 +163,31 @@ adminRouter.post('/api/admin/classes', middlewareAdmin, async (req, res) => {
 //*POST function to load all team data
 adminRouter.post('/api/admin/teams', middlewareAdmin, async (req, res) => {
     try {
-        let teams = await teamModel.find({}).lean();
+        const parent_class = await classModel.findOne({ class_id: req.body.class_id })
+                             .select('class_id course_code section')
+                             .lean();
+
+        if (!parent_class) {
+            return res.status(404).json({ status: false, message: 'Class was not found or is no longer available.' });
+        }
+
+        let teams = await teamModel.find({ class_id: req.body.class_id }).lean();
 
         teams = await Promise.all(teams.map(setTeamInfoAdmin));
         async function setTeamInfoAdmin(team) {
             team.members = await Promise.all(team.members.map(setMemberInfo));
             team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
 
-            const class_data = await classModel.findOne({ class_id: team.class_id })
-                               .select('course_code section');
-
             return {
                 team_id: team.team_id,
                 team_name: team.team_name,
-                class_id: team.class_id,
-                class_name: `${class_data?.course_code} ${class_data?.section}`,
                 members: team.members
             }
         }
 
         return res.status(200).json({   status: 'ok',
-                                        teams: teams,       
+                                        teams: teams,
+                                        parent_class: parent_class,       
                                         message: 'Teams retrieved successfully.' });
     } catch (e) {
         console.log(e);
@@ -195,27 +199,19 @@ adminRouter.post('/api/admin/teams', middlewareAdmin, async (req, res) => {
 //*GET function to load all activity data
 adminRouter.get('/api/admin/activities', middlewareAdmin, async (req, res) => {
     try {
-        let activities = await activityModel.find({}).lean();
+        const parent_class = await classModel.findOne({ class_id: req.query.class_id })
+                             .select('class_id course_code section')
+                             .lean();
 
-        activities = await Promise.all(activities.map(setActivityInfoAdmin));
-        async function setActivityInfoAdmin(activity) {
-            const class_data = await classModel.findOne({ class_id: activity.class_id })
-                               .select('course_code section');
-
-            return {
-                activity_id: activity.activity_id,
-                activity_name: activity.activity_name,
-                class_id: activity.class_id,
-                class_name: `${class_data?.course_code} ${class_data?.section}`,
-                instructions: activity.instructions,
-                open_time: activity.open_time,
-                close_time: activity.close_time,
-                createdAt: activity.createdAt,
-            }
+        if (!parent_class) {
+            return res.status(404).json({ status: false, message: 'Class was not found or is no longer available.' });
         }
+
+        const activities = await activityModel.find({ class_id: req.query.class_id }).lean();
 
         return res.status(200).json({   status: 'ok',
                                         activities: activities,
+                                        parent_class: parent_class,
                                         message: 'Activities retrieved successfully.' });
     } catch (e) {
         console.log(e);
@@ -223,6 +219,77 @@ adminRouter.get('/api/admin/activities', middlewareAdmin, async (req, res) => {
                                         message: 'Server error. Retrieving activities failed.' });
     }
 });
+
+adminRouter.get('/api/admin/assigned-rooms', middlewareAdmin, async (req, res) => {
+    try {
+        let rooms = [], parent_team = {}, parent_activity = {}, parent_class = {};
+
+        if (req.query.foreign_name === 'teams') {
+            rooms = await assignedRoomModel.find({ owner_id: req.query.foreign_key })
+                    .select('room_id room_name owner_id activity_id createdAt updatedAt')
+                    .lean();
+
+            rooms = await Promise.all(rooms.map(setRoomInfoAdmin));
+            async function setRoomInfoAdmin(room) {
+                const activity = await activityModel.findOne({ activity_id: room.activity_id })
+                                    .select('activity_name');
+                return {
+                    room_id: room.room_id,
+                    room_name: room.room_name,
+                    owner_id: room.owner_id,
+                    activity_id: room.activity_id,
+                    activity_name: activity.activity_name,
+                    createdAt: room.createdAt,
+                    updatedAt: room.updatedAt,
+                }   
+            }
+            parent_team = await teamModel.findOne({ team_id: req.query.foreign_key })
+                          .select('team_id team_name class_id');
+
+            if (!parent_team) {
+                return res.status(404).json({   status: false,
+                                                message: 'Team was not found or is no longer available.' });
+            }
+            
+            parent_class = await classModel.findOne({ class_id: parent_team.class_id })
+                           .select('class_id course_code section')
+                           .lean();
+
+        } else if (req.query.foreign_name === 'activities') {
+            rooms = await assignedRoomModel.find({ activity_id: req.query.foreign_key })
+                    .select('room_id room_name owner_id activity_id createdAt updatedAt')
+                    .lean();
+
+            parent_activity = await activityModel.findOne({ activity_id: req.query.foreign_key })
+                              .select('activity_id activity_name class_id')
+                              .lean();
+            
+            if (!parent_activity) {
+                return res.status(404).json({   status: false,
+                                                message: 'Activity was not found or is no longer available.' });
+            }
+
+            parent_class = await classModel.findOne({ class_id: parent_activity.class_id })
+                           .select('class_id course_code section')
+                           .lean();
+        } else {
+            return res.status(404).json({   status: false,
+                                            message: 'Invalid foreign key.' });
+        }
+
+        return res.status(200).json({   status: 'ok',
+                                        assigned_rooms: rooms,
+                                        parent_team: parent_team,
+                                        parent_activity: parent_activity,
+                                        parent_class: parent_class,
+                                        message: 'Assigned rooms retrieved successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Retrieving assigned rooms failed.' });
+    }
+})
+
 
 //*POST function to create a new student
 adminRouter.post('/api/admin/create-student', middlewareAdmin, async (req, res) => {
@@ -785,7 +852,7 @@ adminRouter.post('/api/admin/update-team', middlewareAdmin, async (req, res) => 
         const team = await teamModel.findOne({ team_id: req.body.team_id });
 
         if (!team) {
-            return res.status(404).json({ status: false, message: 'Team not found.' });
+            return res.status(404).json({ status: false, message: 'Team was not found or is no longer available.' });
         }
 
         if (req.body.team_name.length > 30) {
@@ -817,7 +884,7 @@ adminRouter.post('/api/admin/get-class-students', middlewareAdmin, async (req, r
         const class_data = await classModel.findOne({ class_id: req.body.class_id });
 
         if (!class_data) {
-            return res.status(404).json({ status: false, message: 'Class not found.' });
+            return res.status(404).json({ status: false, message: 'Class was not found or is no longer available.' });
         }
 
         const students = await Promise.all(class_data.students.map(setMemberInfo));
@@ -841,7 +908,7 @@ adminRouter.post('/api/admin/add-member', middlewareAdmin, async (req, res) => {
         const team = await teamModel.findOne({ team_id: req.body.team_id })
                      .select('class_id members');
         if (!team) {
-            return res.status(404).json({ status: false, message: 'Team not found.' });
+            return res.status(404).json({ status: false, message: 'Team was not found or is no longer available.' });
         } else if (team.members.includes(req.body.uid)) {
             return res.status(400).json({ status: false, message: 'Student has already joined this team.' });
         }
@@ -849,7 +916,7 @@ adminRouter.post('/api/admin/add-member', middlewareAdmin, async (req, res) => {
         const class_data = await classModel.findOne({ class_id: team.class_id })
                            .select('students');
         if (!class_data) {
-            return res.status(404).json({ status: false, message: 'Class not found.' });
+            return res.status(404).json({ status: false, message: 'Class was not found or is no longer available.' });
         } else if (!class_data.students.includes(req.body.uid)) {
             return res.status(400).json({ status: false, message: 'Student does not belong in the class.' });
         }
@@ -880,7 +947,7 @@ adminRouter.post('/api/admin/remove-member', middlewareAdmin, async (req, res) =
     try {
         const team = await teamModel.findOne({ team_id: req.body.team_id });
         if (!team) {
-            return res.status(404).json({ status: false, message: 'Team not found.' });
+            return res.status(404).json({ status: false, message: 'Team was not found or is no longer available.' });
         }
 
         await teamModel.updateOne({ team_id: req.body.team_id }, {
@@ -924,7 +991,7 @@ adminRouter.post('/api/admin/create-activity', middlewareAdmin, async (req, res)
         const class_data = await classModel.findOne({ class_id: req.body.class_id })
                            .select('class_id');
         if (!class_data) {
-            return res.status(400).json({ status: false, message: 'Class not found.' });
+            return res.status(404).json({ status: false, message: 'Class was not found or is no longer available.' });
         }
 
         let new_id = 0, already_exists = true;
@@ -985,7 +1052,7 @@ adminRouter.post('/api/admin/update-activity', middlewareAdmin, async (req, res)
         const activity = await activityModel.findOne({ activity_id: req.body.activity_id })
                          .select('class_id');
         if (!activity) {
-            return res.status(400).json({ status: false, message: 'Activity not found.' });
+            return res.status(404).json({ status: false, message: 'Activity was not found or is no longer available.' });
         }
 
         await activityModel.updateOne({ activity_id: req.body.activity_id }, {
