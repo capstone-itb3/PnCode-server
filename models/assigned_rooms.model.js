@@ -64,11 +64,6 @@ const assignedRoomSchema = new mongoose.Schema({
         type: [chatSchema],
         required: false,
         default: []
-    },
-    recorded_members: {
-        type: [String],
-        required: false,
-        default: []
     }
 }, { timestamps : true, collection : 'assigned-rooms' });
 

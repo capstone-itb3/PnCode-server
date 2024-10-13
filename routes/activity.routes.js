@@ -111,7 +111,6 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
             room_name: `${team.team_name}'s Room`,
             activity_id: req.query.activity_id,
             owner_id: team.team_id,
-            recorded_members: team.members,
         });
         
         await fileModel.create({

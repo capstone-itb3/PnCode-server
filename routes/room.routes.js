@@ -15,30 +15,34 @@ const express = require('express');
 const roomRouter = express.Router();
 const { v4: uuid } = require('uuid');
 
-//*POST function to get assigned room details for students
-//TODO 1:   Apply activity's access timeframes
+//*POST function to get assigned room details
 roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, res) => {
     try {
         let access = 'write';
 
         let assigned_room = await assignedRoomModel.findOne({ room_id: req.body.room_id })
-        .select('room_id room_name activity_id owner_id recorded_members')
+        .select('room_id room_name activity_id owner_id')
         .lean();
         
         if (!assigned_room) {
             return res.status(404).json({ status: false, message: 'Room not found.'});
         }
-
+        
         const activity = await activityModel.findOne({ activity_id: assigned_room.activity_id }).lean();
-
-
-        const team = await teamModel.findOne({ team_id: assigned_room.owner_id }).lean();
-        if (!team || !activity) {
+        if (!activity) {
             return res.status(404).json({ status: false, message: 'Room not found.'});
         }
 
+        let team = await teamModel.findOne({ team_id: assigned_room.owner_id })
+                     .select('members');
+
+
+        if (!team) {
+            team = { members: null };
+        }
+
         if (req.user.position === 'Student') {
-            if (!verifyStudent(team.members, req.user.uid)) {
+            if (!team.members || !verifyStudent(team.members, req.user.uid)) {
                 return res.status(403).json({ status: false, message: 'Not a part of this room.'});
             }
 
@@ -47,33 +51,13 @@ roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, r
                 return res.status(403).json({ status: false, message: 'Not a part of this room.'});
             }
         }
-
-        function compareRecorded(current, recorded) {
-            if (current.length !== recorded.length) {
-                return false;
-            }
-            return current.slice().sort().every((member, index) => member === recorded.slice().sort()[index]);
+        if (team.members) {
+            team.members = await Promise.all(team.members.map(setMemberInfo));
+            team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
         }
-
-        if (!compareRecorded(team.members, assigned_room.recorded_members)) {
-            console.log(3);
-
-            assigned_room = await assignedRoomModel.findOneAndUpdate({ room_id: req.body.room_id }, { 
-                $set: { recorded_members: team.members }
-            }, { new: true })
-            .select('room_id room_name activity_id owner_id recorded_members')
-            .lean();
-
-            console.log('assigned_room', assigned_room)
-        };
-
-        team.members = await Promise.all(team.members.map(setMemberInfo));
-        team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
         
-        console.log(4)
 
         const files = await fileModel.find({ room_id: req.body.room_id }).lean();
-        console.log(5)
         return res.status(200).json({   status: 'ok', 
                                         room: assigned_room,
                                         files: files,
@@ -83,7 +67,7 @@ roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, r
                                         message: 'Assigned room details retrieved successfully.' });
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({ status: false, message: 'Server error. Retrieving assigned room details failed.' });
     }   
 });
 
@@ -100,31 +84,49 @@ roomRouter.get('/api/get-solo-room-details', middlewareAuth, async (req, res) =>
  
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({ status: false, message: 'Server error. Retrieving solo room details failed.' });
     }   
 });
 
 roomRouter.get('/api/view-output', middlewareAuth, async (req, res) => {
     try {
-        let room = await assignedRoomModel.findOne({ room_id: req.query.room_id });
+        let room = await assignedRoomModel.findOne({ room_id: req.query.room_id })
+                   .select('owner_id activity_id');
 
         //*is assigned room
         if (room) {
-            const files = await fileModel.find({ room_id: req.query.room_id });
+            const files = await fileModel.find({ room_id: req.query.room_id })
+                          .select('file_id name type content')
+                          .lean();
+            
+            if (files.length === 0) {
+                return res.status(404).json({ status: false, message: 'No files found.'});
+            }
+
             const file = files.find(f => f.name === req.query.file_name);
-    
+            
             if (!file) {
                 return res.status(404).json({ status: false, message: 'File not found.'});
             }
-    
+
+            
             if (req.user.position === 'Student') {
-                if (!verifyStudent(room.recorded_members, req.user.uid)) {
-                    return res.status(403).json({ status: false, message: 'Not a part of this room.'});
+                const team = await teamModel.findOne({ team_id: room.owner_id })
+                             .select('members');
+                if (!team) {
+                    return res.status(404).json({ status: false, message: 'Team not found.'});
                 }
-                
+
+                if (!verifyStudent(team.members, req.user.uid)) {
+                    return res.status(403).json({ status: false, message: 'Not a part of this room.'});
+                }                
             } if (req.user.position === 'Professor') {
-                const activity = await activityModel.findOne({ activity_id: room.activity_id });
-                
+                const activity = await activityModel.findOne({ activity_id: room.activity_id })
+                                 .select('class_id');
+                if (!activity) {
+                    return res.status(404).json({ status: false, message: 'Activity not found.'});
+                }
+
                 if (!verifyProfessor(activity.class_id, req.user.uid)) {
                     return res.status(403).json({ status: false, message: 'Not a part of this room.'});
                 }
@@ -138,9 +140,10 @@ roomRouter.get('/api/view-output', middlewareAuth, async (req, res) => {
 
 
         //*is solo room
-        room = await soloRoomModel.findOne({ room_id: req.query.room_id });
+        room = await soloRoomModel.findOne({ room_id: req.query.room_id })
+                     .select('files owner_id');
         if (room) {
-            files = room.files
+            files = room.files;
             file = files.find(f => f.name === req.query.file_name);
 
             if (!file) {
@@ -164,7 +167,7 @@ roomRouter.get('/api/view-output', middlewareAuth, async (req, res) => {
 
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({ status: false, message: 'Server error. Unable to view output.' });
     }   
 });
 
@@ -209,7 +212,7 @@ roomRouter.post('/api/create-room-solo', middlewareAuth, async (req, res) => {
         return res.status(200).json({ status: 'ok', room_id: new_id, message: 'Room Success' });
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({ status: false, message: 'Server error. Unable to create room.' });
     }   
 });
 
@@ -227,7 +230,7 @@ roomRouter.get('/api/get-solo-rooms', middlewareAuth, async (req, res) => {
         return res.status(200).json({ status: 'ok', solo_rooms: solo_rooms});
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({ status: false, message: 'Server error. Unable to retrieve solo rooms.' });
     }   
 });
 
@@ -238,7 +241,7 @@ roomRouter.post('/api/delete-room-solo', middlewareAuth, async (req, res) => {
         return res.status(200).json({ status: 'ok', message: 'Room deleted successfully.' });
     } catch (e) {
         console.log(e);
-        return res.status(500).json({ status: false, message: '500 Internal Server Error.' });
+        return res.status(500).json({ status: false, message: 'Server error. Unable to delete room.' });
     }
 });
 

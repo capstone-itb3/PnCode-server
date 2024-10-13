@@ -290,6 +290,48 @@ adminRouter.get('/api/admin/assigned-rooms', middlewareAdmin, async (req, res) =
     }
 })
 
+adminRouter.get('/api/admin/get-assigned-room-details', middlewareAdmin, async (req, res) => {
+    try {
+        let assigned_room = await assignedRoomModel.findOne({ room_id: req.body.room_id })
+        .select('room_id room_name activity_id owner_id')
+        .lean();
+        
+        if (!assigned_room) {
+            return res.status(404).json({ status: false, message: 'Room not found.'});
+        }
+        
+        const activity = await activityModel.findOne({ activity_id: assigned_room.activity_id }).lean();
+        if (!activity) {
+            return res.status(404).json({ status: false, message: 'Room not found.'});
+        }
+
+        let team = await teamModel.findOne({ team_id: assigned_room.owner_id })
+                     .select('members');
+
+
+        if (!team) {
+            team = { members: null };
+        }
+
+        if (team.members) {
+            team.members = await Promise.all(team.members.map(setMemberInfo));
+            team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
+        }
+        
+        const files = await fileModel.find({ room_id: req.body.room_id }).lean();
+        
+        return res.status(200).json({   status: 'ok', 
+                                        room: assigned_room,
+                                        files: files,
+                                        activity: activity, 
+                                        members: team.members,
+                                        message: 'Assigned room details retrieved successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Retrieving assigned room details failed.' });
+    }
+});
 
 //*POST function to create a new student
 adminRouter.post('/api/admin/create-student', middlewareAdmin, async (req, res) => {
@@ -1086,6 +1128,52 @@ adminRouter.post('/api/admin/update-activity', middlewareAdmin, async (req, res)
         console.log(e);
         return res.status(500).json({   status: false,
                                         message: 'Server error. Updating activity failed.' });
+    }
+});
+
+adminRouter.post('/api/admin/create-assigned-room', middlewareAdmin, async (req, res) => {
+    try {
+        const hasRoom = await assignedRoomModel.findOne({ 
+            activity_id: req.body.activity_id, 
+            owner_id: req.body.team_id 
+        }).select('room_id').lean();
+
+        if (hasRoom) {
+            return res.status(400).json({ status: false, message: 'Team already has a room assigned for this activity.' });
+        }
+
+        const activity = await activityModel.findOne({ activity_id: req.body.activity_id })
+                         .select('activity_id');
+        if (!activity) {
+            return res.status(404).json({ status: false, message: 'Activity was not found or is no longer available.' });
+        }
+
+        const team = await teamModel.findOne({ team_id: req.body.team_id })
+                     .select('team_id team_name members');
+        if (!team) {
+            return res.status(404).json({ status: false, message: 'Team was not found or is no longer available.' });
+        }
+
+        let new_id = 0, already_exists = true;
+        while (already_exists) {
+            new_id = generateNanoId();
+            already_exists = await assignedRoomModel.findOne({ room_id: new_id });
+        }
+
+        await assignedRoomModel.create({
+            room_id: new_id,
+            room_name: `${team.team_name}'s Room`,
+            activity_id: activity.activity_id,
+            owner_id: team.team_id,
+        });
+
+        return res.status(200).json({   status: 'ok',
+                                        room_id: new_id,
+                                        message: 'Assigned room created successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Creating assigned room failed.' });
     }
 });
 

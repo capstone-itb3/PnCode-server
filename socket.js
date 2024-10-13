@@ -370,7 +370,7 @@ function socketConnect(io) {
             }            
         });
 
-        socket.on('delete_file', async ({ file_id, room_id, user_id }) => {
+        socket.on('delete_file', async ({ file_id, room_id }) => {
             try {
                 const editor = arrayEditors.find(edt => edt.id === file_id);
 
@@ -421,6 +421,7 @@ function socketConnect(io) {
             try {
                 const room = await assignedRoomModel.findOne({ room_id: room_id }).lean();
         
+                console.log('notes',room.notes)
                 socket.emit('notepad_loaded', {
                     notes: room.notes,
                 });
@@ -467,6 +468,20 @@ function socketConnect(io) {
             }
         });
 
+        socket.on('delete_message', async ({ room_id, createdAt }) => {
+            try {
+                await assignedRoomModel.updateOne({room_id: room_id}, {
+                    $pull: { chat: { createdAt: new Date(createdAt) } }
+                });
+
+                io.in(room_id).emit('message_deleted', { 
+                    createdAt 
+                });
+            } catch (e) {
+                console.log('delete_message Error:' + e);
+            }
+        })
+
         socket.on('load_feedback', async ({ room_id }) => {
             try {
                 const room = await assignedRoomModel.findOne({ room_id: room_id })
@@ -475,44 +490,40 @@ function socketConnect(io) {
                 
                 room.feedback = await Promise.all(room.feedback.map(setFeedbackInfo));
                 room.feedback.sort((a, b) => b.createdAt - a.createdAt);
-
+                
                 socket.emit('feedback_loaded', {
                     feedback: room.feedback,
                 });
+
             } catch (e) {
                 console.log('load_feedback Error:' + e);
             }
         });
 
-        socket.on('submit_feedback', async ({ room_id, user_id, new_feedback }) => {
+        socket.on('submit_feedback', async ({ room_id, user_id, first_name, last_name, new_feedback }) => {
             try {
-                const user = await professorModel.findOne({ uid: user_id }).lean();
-                if (!user) {
-                    return socket.emit('submit_feedback_result', {
-                        status: false,
-                        action: null,
-                        message: 'User not found.'
-                    });
-                }
-
-                let feed = {
-                    feedback_body: new_feedback,
-                    professor_uid: user_id,
-                    reacts: [],
-                    createdAt: Date.now(),
-                };
+                const createdAt = Date.now();
 
                 await assignedRoomModel.updateOne({ room_id }, {
                     $push: { 
-                        feedback: feed
+                        feedback: {
+                            feedback_body: new_feedback,
+                            professor_uid: user_id,
+                            reacts: [],
+                            createdAt: createdAt
+                        }
                     }
                 });
 
-                feed = await setFeedbackInfo(feed);
-
                 io.to(room_id).emit('submit_feedback_result', {
-                    status: 'ok',
-                    action: 'add'
+                    new_feedback: {
+                        feedback_body: new_feedback,
+                        professor_uid: user_id,
+                        first_name,
+                        last_name,
+                        reacts: [],
+                        createdAt: createdAt
+                    },
                 });
 
             } catch (e) {
@@ -522,19 +533,23 @@ function socketConnect(io) {
 
         socket.on('react_to_feedback', async ({ room_id, createdAt, user_id }) => {
             try {
-                const room = await assignedRoomModel.findOne({ room_id: room_id, 'feedback.createdAt': createdAt })
+                let room = await assignedRoomModel.findOne({ room_id: room_id, 'feedback.createdAt': createdAt })
                              .select('feedback')
                              .lean();
                 const feed = room.feedback.find(feed => new Date(feed.createdAt).toISOString() === new Date(createdAt).toISOString());
 
                 if (!feed.reacts.includes(user_id)) {
-                    await assignedRoomModel.updateOne({ room_id, 'feedback.createdAt': createdAt }, {
+                    let room = await assignedRoomModel.findOneAndUpdate({ room_id, 'feedback.createdAt': createdAt }, {
                         $push: { 'feedback.$.reacts': user_id }
-                    });
+                    }, { new: true })
+                    .select('feedback')
+                    .lean();
 
-                    io.to(room_id).emit('submit_feedback_result', {
-                        status: 'ok',
-                        action: 'react'
+                    room.feedback = await Promise.all(room.feedback.map(setFeedbackInfo));
+                    room.feedback.sort((a, b) => b.createdAt - a.createdAt);    
+
+                    io.to(room_id).emit('feedback_loaded', {
+                        feedback: room.feedback,
                     });
                 }
             } catch (e) {
@@ -544,14 +559,12 @@ function socketConnect(io) {
 
         socket.on('delete_feedback', async ({ room_id, createdAt }) => {
             try {
-                const res = await assignedRoomModel.findOneAndUpdate(
-                    { room_id: room_id },
-                    { $pull: { feedback: { createdAt: new Date(createdAt) } } }
-                , { new: true }).lean();
+                await assignedRoomModel.findOneAndUpdate({ room_id: room_id },{ 
+                    $pull: { feedback: { createdAt: new Date(createdAt) } } 
+                });
 
-                io.to(room_id).emit('submit_feedback_result', {
-                    status: 'ok',
-                    action: 'delete'
+                io.to(room_id).emit('delete_feedback_result', {
+                    createdAt                    
                 });
             } catch (e) {
                 console.log('delete_feedback Error:', e);
