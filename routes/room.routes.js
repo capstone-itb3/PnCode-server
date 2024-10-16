@@ -10,6 +10,7 @@ const { setMemberInfo } = require('../utils/setInfo');
 const middlewareAuth = require('../middleware');
 const { verifyStudent, verifyProfessor } = require('../utils/verifyAccess');
 const generateNanoId = require('../utils/generateNanoId');
+const generateRoomName = require('../utils/generateRoomName');
 
 const express = require('express');
 const roomRouter = express.Router();
@@ -25,12 +26,12 @@ roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, r
         .lean();
         
         if (!assigned_room) {
-            return res.status(404).json({ status: false, message: 'Room not found.'});
+            return res.status(404).json({ status: false, message: 'The room was not found or is no longer available.'});
         }
         
         const activity = await activityModel.findOne({ activity_id: assigned_room.activity_id }).lean();
         if (!activity) {
-            return res.status(404).json({ status: false, message: 'Room not found.'});
+            return res.status(404).json({ status: false, message: 'The room was not found or is no longer available.'});
         }
 
         let team = await teamModel.findOne({ team_id: assigned_room.owner_id })
@@ -79,13 +80,102 @@ roomRouter.get('/api/get-solo-room-details', middlewareAuth, async (req, res) =>
             return res.status(200).json({ status: 'ok', room: room, message: 'Room found.' });
 
         } else {
-            return res.status(404).json({ status: false, message: 'Room not found.' });
+            return res.status(404).json({ status: false, message: 'The room was not found or is no longer available.' });
         }
  
     } catch (e) {
         console.log(e);
         return res.status(500).json({ status: false, message: 'Server error. Retrieving solo room details failed.' });
     }   
+});
+
+//*POST function when user creates a solo room
+roomRouter.post('/api/create-room-solo', middlewareAuth, async (req, res) => {
+    try {
+        let already_exists = true,
+        new_id = 0;
+
+        while (already_exists) {
+            new_id = generateNanoId();
+           
+            already_exists = await soloRoomModel.findOne({
+                room_id: new_id
+            });
+        }
+
+        const created_solos = await soloRoomModel.find({ owner_id: req.user.uid })
+                              .select('room_name');
+
+        
+        if (created_solos.length >= 3) {
+            return res.status(400).json({ status: false, message: 'You can\'t create more than three (3) solo rooms.'})
+        
+        } else {
+            await soloRoomModel.create({
+                room_id: new_id,
+                room_name: generateRoomName(created_solos, req.user.first_name),
+                owner_id: req.user.uid,
+            });    
+        }
+                            
+        return res.status(200).json({ status: 'ok', room_id: new_id, message: 'Room Success' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: 'Server error. Unable to create room.' });
+    }   
+});
+
+//*POST function to get solo rooms for all users
+roomRouter.get('/api/get-solo-rooms', middlewareAuth, async (req, res) => {
+    try {
+        const solo_rooms = await soloRoomModel.find({ owner_id: req.user.uid });
+        const convertOffset = req.body.timezone_diff * 60 * 1000;
+
+        for (let i = 0; i < solo_rooms.length; i++) {
+            solo_rooms[i].updatedAt = new Date(solo_rooms[i].updatedAt.getTime() + convertOffset);
+        }
+        solo_rooms.sort((a, b) => b.updatedAt - a.updatedAt);
+        
+        return res.status(200).json({ status: 'ok', solo_rooms: solo_rooms});
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: 'Server error. Unable to retrieve solo rooms.' });
+    }   
+});
+
+roomRouter.post('/api/update-room-solo', middlewareAuth, async (req, res) => {
+    try {
+        const room = await soloRoomModel.findOne({ room_id: req.body.room_id });
+        if (!room) {
+            return res.status(404).json({ status: false, message: 'The room was not found or is no longer available.' });
+        }
+
+        if (room.owner_id !== req.user.uid) {
+            return res.status(403).json({ status: false, message: 'You are not the owner of this room.' });
+        }
+
+        await soloRoomModel.updateOne({ room_id: req.body.room_id }, {
+            $set: {
+                room_name: req.body.room_name,
+            }
+        });
+
+        return res.status(200).json({ status: 'ok', message: 'Room updated successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: 'Server error. Unable to update room.' });
+    }
+});
+
+roomRouter.post('/api/delete-room-solo', middlewareAuth, async (req, res) => {
+    try {
+        await soloRoomModel.deleteOne({ room_id: req.body.room_id });
+
+        return res.status(200).json({ status: 'ok', message: 'Room deleted successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: 'Server error. Unable to delete room.' });
+    }
 });
 
 roomRouter.get('/api/view-output', middlewareAuth, async (req, res) => {
@@ -162,7 +252,7 @@ roomRouter.get('/api/view-output', middlewareAuth, async (req, res) => {
 
         //*no room exists
         if (!room) {
-            return res.status(404).json({ status: false, message: 'Room not found.'});
+            return res.status(404).json({ status: false, message: 'The room was not found or is no longer available.'});
         }
 
     } catch (e) {
@@ -170,80 +260,5 @@ roomRouter.get('/api/view-output', middlewareAuth, async (req, res) => {
         return res.status(500).json({ status: false, message: 'Server error. Unable to view output.' });
     }   
 });
-
-//*POST function when user creates a solo room
-roomRouter.post('/api/create-room-solo', middlewareAuth, async (req, res) => {
-    try {
-        let already_exists = true,
-        new_id = 0;
-
-        while (already_exists) {
-            new_id = generateNanoId();
-           
-            already_exists = await soloRoomModel.findOne({
-                room_id: new_id
-            });
-        }
-
-        const created_solos = await soloRoomModel.find({ owner_id: req.user.uid });
-
-        const generateRoomName = () => {
-            const baseRoomName = `${req.user.first_name}'s Room ${new Date().toISOString().slice(5, 10)}`;
-            let suffix = '', counter = 1;
-        
-            while (created_solos.some(room => room.room_name === `${baseRoomName}${suffix}`)) {
-                suffix = `-${counter}`;
-                counter++;
-            } 
-            return `${baseRoomName}${suffix}`;
-        };
-        
-        if (created_solos.length >= 3) {
-            return res.status(400).json({ status: false, message: 'You can\'t create more than three (3) solo rooms.'})
-        
-        } else {
-            await soloRoomModel.create({
-                room_id: new_id,
-                room_name: generateRoomName(),
-                owner_id: req.user.uid,
-            });    
-        }
-                            
-        return res.status(200).json({ status: 'ok', room_id: new_id, message: 'Room Success' });
-    } catch (e) {
-        console.log(e);
-        return res.status(500).json({ status: false, message: 'Server error. Unable to create room.' });
-    }   
-});
-
-//*POST function to get solo rooms for all users
-roomRouter.get('/api/get-solo-rooms', middlewareAuth, async (req, res) => {
-    try {
-        const solo_rooms = await soloRoomModel.find({ owner_id: req.user.uid });
-        const convertOffset = req.body.timezone_diff * 60 * 1000;
-
-        for (let i = 0; i < solo_rooms.length; i++) {
-            solo_rooms[i].updatedAt = new Date(solo_rooms[i].updatedAt.getTime() + convertOffset);
-        }
-        solo_rooms.sort((a, b) => b.updatedAt - a.updatedAt);
-        
-        return res.status(200).json({ status: 'ok', solo_rooms: solo_rooms});
-    } catch (e) {
-        console.log(e);
-        return res.status(500).json({ status: false, message: 'Server error. Unable to retrieve solo rooms.' });
-    }   
-});
-
-roomRouter.post('/api/delete-room-solo', middlewareAuth, async (req, res) => {
-    try {
-        await soloRoomModel.deleteOne({ room_id: req.body.room_id });
-
-        return res.status(200).json({ status: 'ok', message: 'Room deleted successfully.' });
-    } catch (e) {
-        console.log(e);
-        return res.status(500).json({ status: false, message: 'Server error. Unable to delete room.' });
-    }
-});
-
 
 module.exports = roomRouter;

@@ -12,7 +12,7 @@ const middlewareAuth = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, 'secret123capstoneprojectdonothackimportant0987654321');
 
-    if (decoded.position === 'Professor') {
+    if (decoded?.position === 'Professor') {
       const user = await professorModel.findOne({ uid: decoded.uid }).lean();
 
       if (user) {
@@ -21,7 +21,7 @@ const middlewareAuth = async (req, res, next) => {
         res.status(401).json({ status: false, message: 'Invalid token.' });
        }
 
-    } else if (decoded.position === 'Student') {
+    } else if (decoded?.position === 'Student') {
       const user = await studentModel.findOne({ uid: decoded.uid }).lean();
 
       if (user) {

@@ -14,6 +14,7 @@ const { setCourseInfoStudent, setCourseInfoProfessor, setMemberInfo } = require(
 const jwt = require('jsonwebtoken');
 const middlewareAdmin = require('./adminMiddleware');
 const generateNanoId = require('../utils/generateNanoId');
+const generateRoomName = require('../utils/generateRoomName');
 
 const regexEmail = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
 
@@ -160,7 +161,7 @@ adminRouter.post('/api/admin/classes', middlewareAdmin, async (req, res) => {
     }
 });
 
-//*POST function to load all team data
+//*POST function to load all team data within a class
 adminRouter.post('/api/admin/teams', middlewareAdmin, async (req, res) => {
     try {
         const parent_class = await classModel.findOne({ class_id: req.body.class_id })
@@ -196,7 +197,7 @@ adminRouter.post('/api/admin/teams', middlewareAdmin, async (req, res) => {
     }
 });
     
-//*GET function to load all activity data
+//*GET function to load all activity data within a class
 adminRouter.get('/api/admin/activities', middlewareAdmin, async (req, res) => {
     try {
         const parent_class = await classModel.findOne({ class_id: req.query.class_id })
@@ -220,11 +221,12 @@ adminRouter.get('/api/admin/activities', middlewareAdmin, async (req, res) => {
     }
 });
 
+//*GET function to load all assigned room data within an activity
 adminRouter.get('/api/admin/assigned-rooms', middlewareAdmin, async (req, res) => {
     try {
         let rooms = [], parent_team = {}, parent_activity = {}, parent_class = {};
 
-        if (req.query.foreign_name === 'teams') {
+        if (req.query.foreign_name === 'team') {
             rooms = await assignedRoomModel.find({ owner_id: req.query.foreign_key })
                     .select('room_id room_name owner_id activity_id createdAt updatedAt')
                     .lean();
@@ -247,15 +249,14 @@ adminRouter.get('/api/admin/assigned-rooms', middlewareAdmin, async (req, res) =
                           .select('team_id team_name class_id');
 
             if (!parent_team) {
-                return res.status(404).json({   status: false,
-                                                message: 'Team was not found or is no longer available.' });
+                parent_team = { team_id: null };
             }
-            
+             
             parent_class = await classModel.findOne({ class_id: parent_team.class_id })
                            .select('class_id course_code section')
                            .lean();
 
-        } else if (req.query.foreign_name === 'activities') {
+        } else if (req.query.foreign_name === 'activity') {
             rooms = await assignedRoomModel.find({ activity_id: req.query.foreign_key })
                     .select('room_id room_name owner_id activity_id createdAt updatedAt')
                     .lean();
@@ -290,9 +291,49 @@ adminRouter.get('/api/admin/assigned-rooms', middlewareAdmin, async (req, res) =
     }
 })
 
+//*GET function to load all solo room data of a user
+adminRouter.get('/api/admin/solo-rooms', middlewareAdmin, async (req, res) => {
+    try {
+        let rooms = [], parent_user = {};
+
+        if (req.query.foreign_name === 'student') {
+            parent_user = await studentModel.findOne({ uid: req.query.foreign_key })
+                          .select('uid first_name last_name');
+            if (!parent_user) {
+                return res.status(404).json({   status: false,
+                                                message: 'Student was not found or is no longer available.' });
+            }
+        } else if (req.query.foreign_name === 'professor') {
+            parent_user = await professorModel.findOne({ uid: req.query.foreign_key })
+                          .select('uid first_name last_name');
+            if (!parent_user) {
+                return res.status(404).json({   status: false,
+                                                message: 'Teacher was not found or is no longer available.' });
+            }
+        } else {
+            return res.status(404).json({   status: false,
+                                            message: 'Invalid foreign key.' });
+        }
+
+        rooms = await soloRoomModel.find({ owner_id: req.query.foreign_key })
+                .select('room_id room_name owner_id createdAt updatedAt')
+                .lean();
+        
+        return res.status(200).json({   status: 'ok',
+                                        solo_rooms: rooms,
+                                        parent_user: parent_user,
+                                        message: 'Solo rooms retrieved successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Retrieving solo rooms failed.' });
+    }
+});
+
+//*GET function to load a particular assigned room data and related data
 adminRouter.get('/api/admin/get-assigned-room-details', middlewareAdmin, async (req, res) => {
     try {
-        let assigned_room = await assignedRoomModel.findOne({ room_id: req.body.room_id })
+        let assigned_room = await assignedRoomModel.findOne({ room_id: req.query.room_id })
         .select('room_id room_name activity_id owner_id')
         .lean();
         
@@ -306,7 +347,7 @@ adminRouter.get('/api/admin/get-assigned-room-details', middlewareAdmin, async (
         }
 
         let team = await teamModel.findOne({ team_id: assigned_room.owner_id })
-                     .select('members');
+                   .select('members');
 
 
         if (!team) {
@@ -318,7 +359,7 @@ adminRouter.get('/api/admin/get-assigned-room-details', middlewareAdmin, async (
             team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
         }
         
-        const files = await fileModel.find({ room_id: req.body.room_id }).lean();
+        const files = await fileModel.find({ room_id: req.query.room_id }).lean();
         
         return res.status(200).json({   status: 'ok', 
                                         room: assigned_room,
@@ -332,6 +373,18 @@ adminRouter.get('/api/admin/get-assigned-room-details', middlewareAdmin, async (
                                         message: 'Server error. Retrieving assigned room details failed.' });
     }
 });
+
+adminRouter.get('/api/admin/get-solo-room-details', middlewareAdmin, async (req, res) => {
+    try {
+        const room = await soloRoomModel.findOne({ room_id: req.query.room_id })
+        .select('room_id room_name owner_id files')
+        .lean();
+
+    } catch (e) {
+        
+    }
+});
+
 
 //*POST function to create a new student
 adminRouter.post('/api/admin/create-student', middlewareAdmin, async (req, res) => {
@@ -984,7 +1037,7 @@ adminRouter.post('/api/admin/add-member', middlewareAdmin, async (req, res) => {
     }
 })
 
-//*POST function to remove a member from a team
+//*POST function to remove a member of a team
 adminRouter.post('/api/admin/remove-member', middlewareAdmin, async (req, res) => {
     try {
         const team = await teamModel.findOne({ team_id: req.body.team_id });
@@ -1005,7 +1058,7 @@ adminRouter.post('/api/admin/remove-member', middlewareAdmin, async (req, res) =
     }
 });
 
-//*POST function to create an activity
+//*POST function to create an activity  from a class
 adminRouter.post('/api/admin/create-activity', middlewareAdmin, async (req, res) => {
     try {
         if (req.body.activity_name.length > 100) {
@@ -1131,6 +1184,7 @@ adminRouter.post('/api/admin/update-activity', middlewareAdmin, async (req, res)
     }
 });
 
+//*POST function to create an assigned room from an activity
 adminRouter.post('/api/admin/create-assigned-room', middlewareAdmin, async (req, res) => {
     try {
         const hasRoom = await assignedRoomModel.findOne({ 
@@ -1177,13 +1231,150 @@ adminRouter.post('/api/admin/create-assigned-room', middlewareAdmin, async (req,
     }
 });
 
+//*POST function to create a solo room for a specific user
+adminRouter.post('/api/admin/create-solo-room', middlewareAdmin, async (req, res) => {
+    try {
+        let user;
+
+        if (req.body.position === 'student') {
+            user = await studentModel.findOne({ uid: req.body.uid })
+                   .select('first_name');
+
+        } else if (req.body.position === 'professor') {
+            user = await professorModel.findOne({ uid: req.body.uid })
+                   .select('first_name');
+        }
+
+        if (!user) {
+            return res.status(404).json({ status: false, message: 'User was not found or is no longer available.' });
+        }
+
+        const created_solos = await soloRoomModel.find({ owner_id: req.body.uid })
+                      .select('room_name');
+
+        if (created_solos.length >= 3) {
+            return res.status(400).json({ status: false, message: 'Solo rooms per user cannot exceed more than three rooms.' });
+        }
+
+        let new_id = 0, already_exists = true;
+
+        while (already_exists) {
+            new_id = generateNanoId();
+            already_exists = await soloRoomModel.findOne({ room_id: new_id });
+        }
+
+        await soloRoomModel.create({
+            room_id: new_id,
+            room_name: generateRoomName(created_solos, user.first_name),
+            owner_id: req.body.uid,
+        });
+
+        return res.status(200).json({   status: 'ok',
+                                        room_id: new_id,
+                                        message: 'Solo room created successfully.' });
+
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Creating solo room failed.' });
+    }
+});
+
+//*POST function to update solo room name
+adminRouter.post('/api/admin/update-solo-room-name', middlewareAdmin, async (req, res) => {
+    try {
+        const room = await soloRoomModel.findOne({ room_id: req.body.room_id })
+                     .select('room_id');
+        if (!room) {
+            return res.status(404).json({ status: false, message: 'Solo room was not found or is no longer available.' });
+        }
+
+        await soloRoomModel.updateOne({ room_id: req.body.room_id }, {
+            $set: {
+                room_name: req.body.new_room_name,
+            },
+        });
+
+        return res.status(200).json({   status: 'ok',
+                                        message: 'Solo room updated successfully.' });
+
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Updating solo room failed.' });
+    }
+});
+
+//*POST function to delete a student
+adminRouter.post('/api/admin/delete-student', middlewareAdmin, async (req, res) => {
+    try {
+        await studentModel.deleteOne({ uid: req.body.uid });
+        
+        await classModel.updateMany({}, {
+            $pull: {
+                students: req.body.uid,
+                requests: req.body.uid
+            },
+        });
+
+        await teamModel.updateMany({ members: req.body.uid }, {
+            $pull: {
+                members: req.body.uid,
+            },
+        });
+
+        await soloRoomModel.deleteMany({ owner_id: req.body.uid }); 
+        
+        return res.status(200).json({   status: 'ok',
+                                        message: 'Student deleted successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Deleting student failed.' });
+
+    }
+});
+
+//*POST function to delete a professor
+adminRouter.post('/api/admin/delete-professor', middlewareAdmin, async (req,res) => {
+    try {
+        await professorModel.deleteOne({ uid: req.body.uid });
+
+        await classModel.updateMany({ professor: req.body.uid }, {
+            professor: ''
+        });
+
+        return res.status(200).json({   status: 'ok',
+                                        message: 'Professor deleted successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Deleting professor failed.' });
+    }
+});
+
 //*POST function to delete a course
-//TODO: delete all teams, rooms, and activities that are related to the course
 adminRouter.post('/api/admin/delete-course', middlewareAdmin, async (req, res) => {
     try {
         await courseModel.deleteOne({ course_code: req.body.course_code });
-        // await classModel.deleteMany({ course_code: req.body.course_code });
 
+        const classes = await classModel.find({ course_code: req.body.course_code })
+                        .select('class_id').lean();
+
+        await classModel.deleteMany({ course_code: req.body.course_code });
+        await teamModel.deleteMany({ class_id: { $in: classes.map(c => c.class_id) } });
+        
+        const activities = await activityModel.find({ 
+            class_id: { $in: classes.map(c => c.class_id) } 
+        }).select('activity_id').lean();
+
+        const assigned_rooms = await assignedRoomModel.find({ 
+            activity_id: { $in: activities.map(a => a.activity_id) } 
+        }).select('room_id').lean();
+
+        await activityModel.deleteMany({ class_id: { $in: classes.map(c => c.class_id) }});
+        await assignedRoomModel.deleteMany({room_id: { $in: assigned_rooms.map(r => r.room_id) }});
+        await fileModel.deleteMany({room_id: { $in: assigned_rooms.map(r => r.room_id) }})
 
         return res.status(200).json({   status: 'ok',
                                         message: 'The course has been deleted.'});
@@ -1196,13 +1387,23 @@ adminRouter.post('/api/admin/delete-course', middlewareAdmin, async (req, res) =
 });
 
 //*POST function to delete a class
-//TODO: delete all teams, rooms, and activities that are related to the class
 adminRouter.post('/api/admin/delete-class', middlewareAdmin, async (req, res) => {
     try {
         await classModel.deleteOne({ class_id: req.body.class_id });
-        // await classModel.deleteMany({ course_code: req.body.course_code });
+        await teamModel.deleteMany({ class_id: req.body.class_id });
 
+        const activities = await activityModel.find({ 
+            class_id: req.body.class_id 
+        }).select('activity_id').lean();
 
+        const assigned_rooms = await assignedRoomModel.find({ 
+            activity_id: { $in: activities.map(a => a.activity_id) } 
+        }).select('room_id').lean();
+
+        await activityModel.deleteMany({ class_id: req.body.class_id });
+        await assignedRoomModel.deleteMany({room_id: { $in: assigned_rooms.map(r => r.room_id) }})
+        await fileModel.deleteMany({room_id: { $in: assigned_rooms.map(r => r.room_id) }})
+        
         return res.status(200).json({   status: 'ok',
                                         message: 'The class has been deleted.'});
 
@@ -1214,11 +1415,15 @@ adminRouter.post('/api/admin/delete-class', middlewareAdmin, async (req, res) =>
 });
 
 //*POST function to delete a team
-//TODO: delete all rooms that are related to the team
 adminRouter.post('/api/admin/delete-team', middlewareAdmin, async (req, res) => {
     try {
         await teamModel.deleteOne({ team_id: req.body.team_id });
-        // await assignedRoomModel.deleteMany({ owner_id: req.body.team_id });
+        await assignedRoomModel.updateMany({ owner_id: req.body.team_id }, {
+            $set: {
+                room_name: `${req.body.team_name} (deleted-team)'s Room`,
+                owner_id: ''
+            }
+        });
 
         return res.status(200).json({   status: 'ok',
                                         message: 'The team has been deleted.'});
@@ -1229,5 +1434,52 @@ adminRouter.post('/api/admin/delete-team', middlewareAdmin, async (req, res) => 
     }
 });
 
+//*POST function to delete an activity
+adminRouter.post('/api/admin/delete-activity', middlewareAdmin, async (req, res) => {
+    try {
+        await activityModel.deleteOne({ activity_id: req.body.activity_id });
+        const assigned_rooms = await assignedRoomModel.find({ activity_id: req.body.activity_id })
+                               .select('room_id')
+                               .lean();
 
+        await assignedRoomModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) } });
+        await fileModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) } });
+    
+        return res.status(200).json({   status: 'ok',
+                                        message: 'The activity has been deleted.'});
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Deleting activity failed.' });
+    }
+});
+
+//*POST function to delete an assigned room
+adminRouter.post('/api/admin/delete-assigned-room', middlewareAdmin, async (req, res) => {
+    try {
+        await assignedRoomModel.deleteOne({ room_id: req.body.room_id });
+        await fileModel.deleteMany({ room_id: req.body.room_id });
+
+        return res.status(200).json({   status: 'ok',
+                                        message: 'The assigned room has been deleted.'});
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Deleting assigned room failed.' });
+    }
+});
+
+//*POST function to delete a solo room
+adminRouter.post('/api/admin/delete-solo-room', middlewareAdmin, async (req, res) => {
+    try {
+        await soloRoomModel.deleteOne({ room_id: req.body.room_id });
+
+        return res.status(200).json({   status: 'ok',
+                                        message: 'The solo room has been deleted.'});
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Deleting solo room failed.' });
+    }
+});
 module.exports = adminRouter;

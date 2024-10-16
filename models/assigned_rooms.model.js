@@ -48,7 +48,7 @@ const assignedRoomSchema = new mongoose.Schema({
     },
     owner_id: {
         type: String,
-        required: true,
+        required: false,
     },  
     notes: {
         type: String,

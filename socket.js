@@ -207,7 +207,7 @@ function socketConnect(io) {
                                         contributions: file.contributions
                                     }
                                 }
-                            }, { new: true }).lean();
+                            });
 
                             io.in(file_id).emit('reupdate_history', {
                                 status: 'ok',
@@ -222,6 +222,28 @@ function socketConnect(io) {
                     });
                 }
                 
+            } catch (e) {
+                socket.emit('update_result', {
+                    status: false,
+                    message: 'Error updating code: ' + e.message
+                });
+                console.log('update_code Error:' + e);
+            }
+        });
+
+        socket.on('update_code_admin', async ({file_id, code}) => {
+            try {
+                let file = await fileModel.findOneAndUpdate({ file_id },{ 
+                    $set: { content: code  } }, { new: true })
+                    .select('content')
+                    .lean();
+
+                if (file.content === code) {
+                    socket.emit('update_result', {
+                        status: 'ok',
+                        message: 'Code updated successfully',
+                    });
+                }                
             } catch (e) {
                 socket.emit('update_result', {
                     status: false,
