@@ -29,7 +29,7 @@ classRouter.post('/api/get-enrolled-classes', middlewareAuth, async (req, res) =
 
     } catch (e) {
         return res.status(500).json({   status: false,
-                                        message: e.message });
+                                        message: 'Server error. Retrieving enrolled classes failed.' });;
     }
 });
 
@@ -48,7 +48,7 @@ classRouter.post('/api/get-assigned-classes', middlewareAuth, async (req, res) =
     } catch (e) {
         console.log(e)
         return res.status(500).json({   status: false,
-                                        message: e.message });
+                                        message: 'Server error. Retrieving assigned classes failed.' });;
     }
 })
 
@@ -88,7 +88,7 @@ classRouter.post('/api/request-course', middlewareAuth, async (req, res) => {
     } catch (e) {
         console.log(e)
         return res.status(500).json({   status: false,
-                                        message: e.message });
+                                        message: 'Server error. Requesting course failed.' });;
     }
 });
 
@@ -120,7 +120,7 @@ classRouter.post('/api/get-included-students', middlewareAuth, async (req, res) 
     } catch (e) {
         console.log(e);
         return res.status(500).json({   status: false, 
-                                        message: e.message });
+                                        message: 'Server error. Retrieving students failed.' });
     }
 });
 
@@ -140,7 +140,7 @@ classRouter.post('/api/accept-request', middlewareAuth, async (req, res) => {
     } catch (e) {
         console.log(e);
         return res.status(500).json({   status: false,
-                                        message: e.message });
+                                        message: 'Server error. Accepting request failed.' });
     }
 });
 
@@ -156,21 +156,22 @@ classRouter.post('/api/reject-request', middlewareAuth, async (req, res) => {
     } catch (e) {
         console.log(e);
         return res.status(500).json({   status: false,
-                                        message: e.message });
+                                        message: 'Server error. Rejecting request failed.' });
     }
 });
 
 classRouter.post('/api/remove-student', middlewareAuth, async (req, res) => {
     try {
+        await teamModel.updateOne({ 
+            class_id: req.body.class_id, 
+            members: req.body.uid 
+        }, { 
+            $pull: { members: req.body.uid }
+        });
+
         await classModel.updateOne({ class_id: req.body.class_id }, {
             $pull: {
                 students: req.body.uid
-            }
-        });
-
-        await teamModel.updateOne({ class_id: req.body.class_id }, {
-            $pull: {
-                members: req.body.uid
             }
         });
 
@@ -179,7 +180,7 @@ classRouter.post('/api/remove-student', middlewareAuth, async (req, res) => {
     } catch (e) {
         console.log(e);
         return res.status(500).json({   status: false,
-                                        message: e.message });
+                                        message: 'Server error. Removing student failed.' });
     }
 })
 

@@ -183,6 +183,12 @@ teamRouter.post('/api/remove-member', middlewareAuth, async (req, res) => {
 teamRouter.post('/api/delete-team', middlewareAuth, async (req, res) => {
     try {
         await teamModel.deleteOne({ team_id: req.body.team_id });
+        await assignedRoomModel.updateMany({ owner_id: req.body.team_id }, {
+            $set: {
+                room_name: `${req.body.team_name} (deleted-team)'s Room`,
+                owner_id: ''
+            }
+        });
         
         return res.status(200).json({ status: 'ok', message: 'Team deleted successfully.' });
     } catch (e) {

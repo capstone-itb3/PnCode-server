@@ -424,7 +424,6 @@ adminRouter.post('/api/admin/create-student', middlewareAdmin, async (req, res) 
             password: passwordHash,
             first_name: req.body.first_name,
             last_name: req.body.last_name,
-            position: 'Student',
             notifications: [],
         });
 
@@ -538,7 +537,6 @@ adminRouter.post('/api/admin/create-professor', middlewareAdmin, async (req, res
             password: passwordHash,
             first_name: req.body.first_name,
             last_name: req.body.last_name,
-            position: 'Professor',
             notifications: [],
         });
 
@@ -829,10 +827,11 @@ adminRouter.post('/api/admin/remove-student', middlewareAdmin, async (req, res) 
             }
         });
 
-        await teamModel.updateOne({ class_id: req.body.class_id }, {
-            $pull: {
-                members: req.body.uid
-            }
+        await teamModel.updateOne({ 
+            class_id: req.body.class_id, 
+            members: req.body.uid 
+        }, { 
+            $pull: { members: req.body.uid }
         });
 
         return res.status(200).json({  status: 'ok', message: 'Student removed successfully.' });

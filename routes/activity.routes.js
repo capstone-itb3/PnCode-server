@@ -114,7 +114,7 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
         });
         
         await fileModel.create({
-            file_id: uuid().toString(),
+            file_id: generateNanoId(),
             name: `index.html`,
             type: 'html',
             room_id: new_room,
@@ -246,19 +246,13 @@ activityRouter.post('/api/update-dates', middlewareAuth, async (req, res) => {
 
 activityRouter.post('/api/delete-activity', middlewareAuth, async (req, res) => {
     try {
-        await activityModel.deleteOne({
-            activity_id: req.body.activity_id
-        });
+        await activityModel.deleteOne({ activity_id: req.body.activity_id });
+        const assigned_rooms = await assignedRoomModel.find({ activity_id: req.body.activity_id })
+                               .select('room_id')
+                               .lean();
 
-        const rooms_related = await assignedRoomModel.find({ activity_id: req.body.activity_id })
-        .select('room_id')
-        .lean();
-
-        await Promise.all(rooms_related.map(deleteRooms));
-        async function deleteRooms(room) {
-            await fileModel.deleteMany({ room_id: room.room_id });
-            await assignedRoomModel.deleteOne({ room_id: room.room_id });
-        }
+        await assignedRoomModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) } });
+        await fileModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) } });
         
         return res.status(200).json({ status: 'ok', message: 'Activity deleted successfully.' });
     } catch (e) {

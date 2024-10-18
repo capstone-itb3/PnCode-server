@@ -39,10 +39,6 @@ const professorSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
-    position: {
-        type: String,
-        required: true
-    },
     notifications: {
         type: [notificationSchema],
         required: false,

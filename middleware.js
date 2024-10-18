@@ -17,8 +17,9 @@ const middlewareAuth = async (req, res, next) => {
 
       if (user) {
         req.user = user;
+        req.user.position = 'Professor';
       } else {
-        res.status(401).json({ status: false, message: 'Invalid token.' });
+        return res.status(401).json({ status: false, message: 'Invalid token.' });
        }
 
     } else if (decoded?.position === 'Student') {
@@ -26,18 +27,19 @@ const middlewareAuth = async (req, res, next) => {
 
       if (user) {
         req.user = user;
+        req.user.position = 'Student';
       } else {
-        res.status(401).json({ status: false, message: 'Invalid token.' });
+        return res.status(401).json({ status: false, message: 'Invalid token.' });
       }
       
     } else {
-      res.status(401).json({ status: false, message: 'Invalid token.' });
+      return res.status(401).json({ status: false, message: 'Invalid token.' });
     }
     
     next();
     
   } catch (err) {
-    res.status(401).json({ status: false, message: 'Token is not valid.' });
+    return res.status(401).json({ status: false, message: 'Token is not valid.' });
   }
 };
 
