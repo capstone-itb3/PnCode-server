@@ -8,6 +8,7 @@ const fileModel = require('../models/files.model');
 const middlewareAuth = require('../middleware');
 const { verifyStudent, verifyProfessor } = require('../utils/verifyAccess');
 const generateNanoId = require('../utils/generateNanoId');
+const { notifyStudents, notifyProfessor } = require('../utils/notifySelector');
 
 const express = require('express');
 const activityRouter = express.Router();
@@ -52,8 +53,15 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
             return res.status(400).json({ status: false, message: 'Close time must be no earlier than open time.' });
         }
 
-        let already_exists = true, 
-            new_id = 0;
+        const class_data = await classModel.findOne({ class_id: req.body.class_id })
+                           .select('course_code students')
+                           .lean();
+
+        if (!class_data) {
+            return res.status(404).json({ status: false, message: 'Class not found.' });
+        }
+
+        let new_id = 0, already_exists = true;
 
         while (already_exists) {
             new_id = generateNanoId();
@@ -63,7 +71,6 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
             });
         }
     
-        
         await activityModel.create({
             activity_id: new_id,
             activity_name: req.body.activity_name,
@@ -72,6 +79,17 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
             open_time: req.body.open_time,
             close_time: req.body.close_time,
         });
+
+        const notification = {
+            source: `${req.user.first_name} ${req.user.last_name}`,
+            for: `${class_data.course_code}`,
+            type: 'activity',
+            subject_name: req.body.activity_name,
+            subject_id: new_id,
+        }
+
+        
+        notifyStudents(class_data.students, notification);
 
         res.status(200).json({ status: 'ok', activity_id: new_id, message: 'Activity created successfully.' });
     } catch (e) {
@@ -84,10 +102,16 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
 
 activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
     try {
+        const activity = await activityModel.findOne({ activity_id: req.query.activity_id })
+                         .select('class_id');
+        if (!activity) {
+            return res.status(404).json({ status: false, message: 'Activity was not found is no longer available.' });
+        }
+
         const team = await teamModel.findOne({
             members: req.user.uid,
-            class_id: req.query.class_id,
-        });
+            class_id: activity.class_id,
+        }).select('team_id team_name');
 
         if (!team) {
             return res.status(400).json({ status: false, message: 'Please join or create a team first.' });
@@ -102,36 +126,37 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
 
         if (assigned_room) {
             return res.status(200).json({ status: 'ok', room_id: assigned_room.room_id, message: 'Room found.' });
+
+        } else {
+            const new_room = generateNanoId();
+
+            await assignedRoomModel.create({
+                room_id: new_room,
+                room_name: `${team.team_name}'s Room`,
+                activity_id: req.query.activity_id,
+                owner_id: team.team_id,
+            });
+            
+            await fileModel.create({
+                file_id: generateNanoId(),
+                name: `index.html`,
+                type: 'html',
+                room_id: new_room,
+                content:    '<!DOCTYPE html>'
+                        + '\n<html lang="en">'
+                        + '\n<head>'
+                        + '\n<meta charset="UTF-8" />'
+                        + '\n<meta name="viewport" content="width=device-width, initial-scale=1.0" />'
+                        + '\n<title></title>'
+                        + '\n</head>'
+                        + '\n<body>'
+                        + '\n</body>'
+                        + '\n</html>',
+                history: []
+            });
+    
+            return res.status(200).json({ status: 'ok', room_id: new_room, message: 'New room created for the activity' });                
         }
-
-        const new_room = generateNanoId();
-
-        await assignedRoomModel.create({
-            room_id: new_room,
-            room_name: `${team.team_name}'s Room`,
-            activity_id: req.query.activity_id,
-            owner_id: team.team_id,
-        });
-        
-        await fileModel.create({
-            file_id: generateNanoId(),
-            name: `index.html`,
-            type: 'html',
-            room_id: new_room,
-            content:    '<!DOCTYPE html>'
-                    + '\n<html lang="en">'
-                    + '\n<head>'
-                    + '\n<meta charset="UTF-8" />'
-                    + '\n<meta name="viewport" content="width=device-width, initial-scale=1.0" />'
-                    + '\n<title></title>'
-                    + '\n</head>'
-                    + '\n<body>'
-                    + '\n</body>'
-                    + '\n</html>',
-            history: []
-        });
-
-        return res.status(200).json({ status: 'ok', room_id: new_room, message: 'New room created for the activity' });
     } catch (e) {
         console.log(e);
         return res.status(500).json({   status: false, 

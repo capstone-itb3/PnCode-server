@@ -5,6 +5,7 @@ const generateNanoId = require('../utils/generateNanoId');
 
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const middlewareAuth = require('../middleware');
 
 const accountRouter = express.Router();
 
@@ -120,6 +121,41 @@ accountRouter.post('/api/login/professor', async (req, res) => {
     } catch (err) {
         return res.status(500).json({   status: false, 
                                         message: err.message });
+    }
+});
+
+accountRouter.get('/api/get-user-notifications', middlewareAuth, async (req, res) => {
+    try {
+        return res.status(200).json({   status: 'ok',
+                                        notifications: req.user.notifications,
+                                        message: 'Retrieved notifications successfully'});
+
+    } catch (e) {
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Retrieving user notifications failed.'});
+    }  
+})
+
+accountRouter.post('/api/update-notifications', middlewareAuth, async (req, res) => {
+    try {
+        if (req.user.position === 'Student') {
+            await studentModel.updateOne({ uid: req.user.uid }, {
+                notifications: req.user.notifications.filter(n => !req.body.read_notifs.includes(n.notif_id))
+            })
+
+        } else if (req.user.position === 'Professor') {
+            await professorModel.updateOne({ uid: req.user.uid }, {
+                notifications: req.user.notifications.filter(n => !req.body.read_notifs.includes(n.notif_id))
+            })
+        }
+
+        return res.status(200).json({   status: 'ok',
+                                        message: 'Notifications updated successfully'});
+        
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Updating notifications failed.'});
     }
 });
 

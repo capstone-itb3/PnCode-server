@@ -6,22 +6,27 @@ const notificationSchema = new mongoose.Schema({
         required: true,
         default: parseInt(Date.now() / 1000)
     },
-    message: {
+    source: {
+        type: String,
+        required: false
+    },
+    for: {
+        type: String,
+        required: false
+    },
+    type: {
         type: String,
         required: true
     },
+
     subject_name: {
         type: String,
-        required: true
+        required: false
     },
     subject_id: {
         type: Object,
-        required: true
-    },
-    additional: {
-        type: String,
         required: false
-    }
+    },
 }, { timestamps: true });
 
 const studentSchema = new mongoose.Schema({
