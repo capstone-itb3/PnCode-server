@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema({
     notif_id: {
         type: String,
         required: true,
-        default: parseInt(Date.now() / 1000)
+        default: parseInt(Date.now())
     },
     source: {
         type: String,
@@ -18,7 +18,6 @@ const notificationSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-
     subject_name: {
         type: String,
         required: false

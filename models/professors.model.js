@@ -1,19 +1,32 @@
 const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema({
-    message: {
+    notif_id: {
+        type: String,
+        required: true,
+        default: parseInt(Date.now())
+    },
+    source: {
+        type: String,
+        required: false
+    },
+    for: {
+        type: String,
+        required: false
+    },
+    type: {
         type: String,
         required: true
     },
-    date: {
-        type: Date,
-        required: true
+    subject_name: {
+        type: String,
+        required: false
     },
-    is_read: {
-        type: Boolean,
-        required: true
-    }
-});
+    subject_id: {
+        type: Object,
+        required: false
+    },
+}, { timestamps: true });
 
 const professorSchema = new mongoose.Schema({
     uid: {

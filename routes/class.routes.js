@@ -126,15 +126,34 @@ classRouter.post('/api/get-included-students', middlewareAuth, async (req, res) 
 
 classRouter.post('/api/accept-request', middlewareAuth, async (req, res) => {
     try {
-        await classModel.updateOne({ class_id: req.body.class_id }, {
+        const class_data = await classModel.findOneAndUpdate({ class_id: req.body.class_id }, {
             $pull: {
                 requests: req.body.uid
             },
             $push: {
                 students: req.body.uid
             }
+        }).select('course_code section').lean();
+
+        if (!class_data) {
+            return res.status(400).json({  status: false,
+                                            message: 'This class does not anymore exist.' });
+        }
+
+        const notification = {
+            source: `${req.user.first_name} ${req.user.last_name}`,
+            type: 'class',
+            for: 'accepted',
+            subject_name: `${class_data.course_code} ${class_data.section}`,
+            subject_id: req.body.class_id,
+        }
+
+        await studentModel.updateOne({ uid: req.body.uid }, {
+            $push: {
+                notifications: { $each: [notification], $position: 0 }
+            }
         });
-        
+    
         return res.status(200).json({  status: 'ok', message: 'Request accepted successfully.' });
 
     } catch (e) {
@@ -146,11 +165,31 @@ classRouter.post('/api/accept-request', middlewareAuth, async (req, res) => {
 
 classRouter.post('/api/reject-request', middlewareAuth, async (req, res) => {
     try {
-        await classModel.updateOne({ class_id: req.body.class_id }, {
+        const class_data = await classModel.findOneAndUpdate({ class_id: req.body.class_id }, {
             $pull: {
                 requests: req.body.uid
             }
+        }).select('course_code section').lean();
+        
+        if (!class_data) {
+            return res.status(400).json({  status: false,
+                                            message: 'This class does not anymore exist.' });
+        }
+
+        const notification = {
+            source: `${req.user.first_name} ${req.user.last_name}`,
+            type: 'class',
+            for: 'rejected',
+            subject_name: `${class_data.course_code} ${class_data.section}`,
+            subject_id: '',
+        }
+
+        await studentModel.updateOne({ uid: req.body.uid }, {
+            $push: {
+                notifications: { $each: [notification], $position: 0 }
+            }
         });
+
 
         return res.status(200).json({  status: 'ok', message: 'Request rejected successfully.' });
     } catch (e) {
@@ -169,9 +208,28 @@ classRouter.post('/api/remove-student', middlewareAuth, async (req, res) => {
             $pull: { members: req.body.uid }
         });
 
-        await classModel.updateOne({ class_id: req.body.class_id }, {
+        const class_data = await classModel.findOneAndUpdate({ class_id: req.body.class_id }, {
             $pull: {
                 students: req.body.uid
+            }
+        }).select('course_code section').lean();
+
+        if (!class_data) {
+            return res.status(400).json({  status: false,
+                                            message: 'This class does not anymore exist.' });
+        }
+
+        const notification = {
+            source: `${req.user.first_name} ${req.user.last_name}`,
+            type: 'remove',
+            for: 'class',
+            subject_name: `${class_data.course_code} ${class_data.section}`,
+            subject_id: '',
+        }
+
+        await studentModel.updateOne({ uid: req.body.uid }, {
+            $push: {
+                notifications: { $each: [notification], $position: 0 }
             }
         });
 

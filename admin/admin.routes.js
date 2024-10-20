@@ -374,6 +374,7 @@ adminRouter.get('/api/admin/get-assigned-room-details', middlewareAdmin, async (
     }
 });
 
+//*GET function to load a particular solo room data
 adminRouter.get('/api/admin/get-solo-room-details', middlewareAdmin, async (req, res) => {
     try {
         const room = await soloRoomModel.findOne({ room_id: req.query.room_id })
@@ -384,7 +385,6 @@ adminRouter.get('/api/admin/get-solo-room-details', middlewareAdmin, async (req,
         
     }
 });
-
 
 //*POST function to create a new student
 adminRouter.post('/api/admin/create-student', middlewareAdmin, async (req, res) => {
@@ -1251,8 +1251,8 @@ adminRouter.post('/api/admin/create-solo-room', middlewareAdmin, async (req, res
         const created_solos = await soloRoomModel.find({ owner_id: req.body.uid })
                       .select('room_name');
 
-        if (created_solos.length >= 3) {
-            return res.status(400).json({ status: false, message: 'Solo rooms per user cannot exceed more than three rooms.' });
+        if (created_solos.length >= 5) {
+            return res.status(400).json({ status: false, message: 'Solo rooms per user cannot exceed more than five rooms.' });
         }
 
         let new_id = 0, already_exists = true;

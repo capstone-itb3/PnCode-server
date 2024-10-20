@@ -37,7 +37,6 @@ roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, r
         let team = await teamModel.findOne({ team_id: assigned_room.owner_id })
                      .select('members');
 
-
         if (!team) {
             team = { members: null };
         }
@@ -53,10 +52,30 @@ roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, r
             }
         }
         if (team.members) {
-            team.members = await Promise.all(team.members.map(setMemberInfo));
+            team.members = await studentModel.find({ uid: { $in: team.members } })
+                           .select('uid first_name last_name')
+                           .lean();
+            team.members.map(user => {
+                if (!user) {
+                    return {
+                        uid: '',
+                        first_name: '',
+                        last_name: '[Deleted User]'
+                    }
+                }
+            })
             team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
         }
         
+        if (req.user.position === 'Professor') {
+            activity.other_rooms = await assignedRoomModel.find({ 
+                activity_id: activity.activity_id, 
+            }).select('room_id room_name').lean();
+
+        }  else {
+            activity.other_rooms = [];
+        }
+
 
         const files = await fileModel.find({ room_id: req.body.room_id }).lean();
         return res.status(200).json({   status: 'ok', 
@@ -107,8 +126,8 @@ roomRouter.post('/api/create-room-solo', middlewareAuth, async (req, res) => {
                               .select('room_name');
 
         
-        if (created_solos.length >= 3) {
-            return res.status(400).json({ status: false, message: 'You can\'t create more than three (3) solo rooms.'})
+        if (created_solos.length >= 5) {
+            return res.status(400).json({ status: false, message: 'You can\'t create more than five (5) solo rooms.'})
         
         } else {
             await soloRoomModel.create({
