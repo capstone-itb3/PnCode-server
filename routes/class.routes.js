@@ -98,11 +98,11 @@ classRouter.post('/api/get-included-students', middlewareAuth, async (req, res) 
         .select('students requests')
         .lean();
 
-        let students = await Promise.all(class_data.students.map(setMemberInfo));
+        let students = await setMemberInfo(class_data.students);
         let requests = [];
         
         if (req.body.list === 'all') {
-            requests = await Promise.all(class_data.requests.map(setMemberInfo));
+            requests = await setMemberInfo(class_data.requests);
         }
 
         if (req.user.position === 'Student') {

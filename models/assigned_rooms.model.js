@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const feedbackSchema = new mongoose.Schema({
+    feedback_id: {
+        type: String,
+        required: true,
+        default: parseInt(Date.now())
+    },
     feedback_body: {
         type: String,
         required: true,
@@ -18,6 +23,11 @@ const feedbackSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const chatSchema = new mongoose.Schema({
+    chat_id: {
+        type: String,
+        required: true,
+        default: parseInt(Date.now())
+    },
     chat_body: {
         type: String,
         required: true

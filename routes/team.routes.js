@@ -19,7 +19,7 @@ teamRouter.get('/api/get-teams', middlewareAuth, async (req, res) => {
         const teams = await teamModel.find({ class_id: req.query.class_id });
 
         for (let i = 0; i < teams.length; i++) {
-            teams[i].members = await Promise.all(teams[i].members.map(setMemberInfo));
+            teams[i].members = await setMemberInfo(teams[i].members);
         }
         
         return res.status(200).json({ status: 'ok', teams: teams });
@@ -97,7 +97,7 @@ teamRouter.post('/api/get-team-details', middlewareAuth, async (req, res) => {
             }
         }
 
-        team.members = await Promise.all(team.members.map(setMemberInfo));
+        team.members = await setMemberInfo(team.members);
         team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
 
         return res.status(200).json({   status: 'ok', 

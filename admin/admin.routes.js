@@ -9,7 +9,7 @@ const assignedRoomModel = require('../models/assigned_rooms.model');
 const fileModel = require('../models/files.model');
 const adminModel = require('./admins.model');
 
-const { setCourseInfoStudent, setCourseInfoProfessor, setMemberInfo } = require('../utils/setInfo');
+const { setMemberInfo } = require('../utils/setInfo');
 
 const jwt = require('jsonwebtoken');
 const middlewareAdmin = require('./adminMiddleware');
@@ -176,14 +176,10 @@ adminRouter.post('/api/admin/teams', middlewareAdmin, async (req, res) => {
 
         teams = await Promise.all(teams.map(setTeamInfoAdmin));
         async function setTeamInfoAdmin(team) {
-            team.members = await Promise.all(team.members.map(setMemberInfo));
+            team.members = await setMemberInfo(team.members);
             team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
 
-            return {
-                team_id: team.team_id,
-                team_name: team.team_name,
-                members: team.members
-            }
+            return team;
         }
 
         return res.status(200).json({   status: 'ok',
@@ -236,13 +232,8 @@ adminRouter.get('/api/admin/assigned-rooms', middlewareAdmin, async (req, res) =
                 const activity = await activityModel.findOne({ activity_id: room.activity_id })
                                     .select('activity_name');
                 return {
-                    room_id: room.room_id,
-                    room_name: room.room_name,
-                    owner_id: room.owner_id,
-                    activity_id: room.activity_id,
+                    ...room,
                     activity_name: activity.activity_name,
-                    createdAt: room.createdAt,
-                    updatedAt: room.updatedAt,
                 }   
             }
             parent_team = await teamModel.findOne({ team_id: req.query.foreign_key })
@@ -355,7 +346,7 @@ adminRouter.get('/api/admin/get-assigned-room-details', middlewareAdmin, async (
         }
 
         if (team.members) {
-            team.members = await Promise.all(team.members.map(setMemberInfo));
+            team.members = await setMemberInfo(team.members);
             team.members.sort((a, b) => a.last_name.localeCompare(b.last_name));
         }
         
@@ -975,13 +966,14 @@ adminRouter.post('/api/admin/update-team', middlewareAdmin, async (req, res) => 
 //*POST function to get students in a class 
 adminRouter.post('/api/admin/get-class-students', middlewareAdmin, async (req, res) => {
     try {
-        const class_data = await classModel.findOne({ class_id: req.body.class_id });
+        const class_data = await classModel.findOne({ class_id: req.body.class_id })
+                           .select('students');
 
         if (!class_data) {
             return res.status(404).json({ status: false, message: 'Class was not found or is no longer available.' });
         }
 
-        const students = await Promise.all(class_data.students.map(setMemberInfo));
+        const students = await setMemberInfo(class_data.students);
         students.sort((a, b) => a.last_name.localeCompare(b.last_name));
         
 
@@ -1481,4 +1473,5 @@ adminRouter.post('/api/admin/delete-solo-room', middlewareAdmin, async (req, res
                                         message: 'Server error. Deleting solo room failed.' });
     }
 });
+
 module.exports = adminRouter;
