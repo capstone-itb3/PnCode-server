@@ -19,7 +19,7 @@ const { v4: uuid } = require('uuid');
 //*POST function to get assigned room details
 roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, res) => {
     try {
-        let access = 'write';
+        let access = true;
 
         let assigned_room = await assignedRoomModel.findOne({ room_id: req.body.room_id })
         .select('room_id room_name activity_id owner_id')
@@ -41,16 +41,17 @@ roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, r
             team = { members: null };
         }
 
-        if (req.user.position === 'Student') {
-            if (!team.members || !verifyStudent(team.members, req.user.uid)) {
-                return res.status(403).json({ status: false, message: 'Not a part of this room.'});
-            }
-
-        } else if (req.user.position === 'Professor') {
+        if (req.user.position === 'Professor') {
             if (!verifyProfessor(activity.class_id, req.user.uid)) {
                 return res.status(403).json({ status: false, message: 'Not a part of this room.'});
             }
+
+        } else {
+            if (!team.members || !verifyStudent(team.members, req.user.uid)) {
+                return res.status(403).json({ status: false, message: 'Not a part of this room.'});
+            }
         }
+
         if (team.members) {
             team.members = await studentModel.find({ uid: { $in: team.members } })
                            .select('uid first_name last_name')

@@ -118,10 +118,12 @@ function socketConnect(io) {
                     editor = findEditor(file_id);
                 }
 
-                editor.users.push({
-                    socket_id: socket.id,
-                    user_id,
-                });
+                if (!editor.users.find(user => user.socket_id === socket.id)) {
+                    editor.users.push({
+                        socket_id: socket.id,
+                        user_id,
+                    });
+                }
 
                 emitEditorUsers(editor);
             } catch (e) {
@@ -195,16 +197,19 @@ function socketConnect(io) {
                     });
                     
                     if (store_history) {
-                        const no_record = file.history.length === 0 && file.contributions.length !== 0;
-                        const same_record = !no_record 
-                                            ? file.history[file.history.length - 1]?.content === code 
-                                        : false;
-                        const closer_timestamp = !no_record 
-                                                 ? Date.now() - new Date(file.history[file.history.length - 1]?.createdAt) <= 300000 
-                                                 : false;
-                                                 
-                         if (no_record || (same_record || closer_timestamp) !== true) {
-
+                        const no_record = hasNoRecord(file.history.length, file.contributions.length);
+                        const same_record = hasSameRecord(file.history[0]?.content, code);
+                        const closer_timestamp = hasCloserTimestamp(file.history[0]?.createdAt);
+                        console.log('no_record', no_record);
+                        console.log('same_record', same_record);
+                        console.log('closer_timestamp', closer_timestamp);
+                        console.log('date.now', Date.now());
+                        console.log(new Date(file.history[0]?.createdAt));                        
+                        let can_store = !no_record ? !same_record && !closer_timestamp  : true;
+                        
+                        if (!no_record ? !same_record && !closer_timestamp : true) {
+                            console.log('can_store', can_store);
+                            
                             const new_history = {
                                 content: code,
                                 contributions: file.contributions,
@@ -640,5 +645,17 @@ function socketConnect(io) {
         });
     });
 }
+
+function hasNoRecord(history_length, contributions_length) {
+    return history_length === 0 && contributions_length === 0;
+}
+function hasSameRecord(prev_code, new_code) {
+   return prev_code === new_code;
+}
+function hasCloserTimestamp(latest_created) {
+    return Date.now() - new Date(latest_created) <= 300000;
+}
+
+
 
 module.exports = socketConnect;
