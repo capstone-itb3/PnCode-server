@@ -45,15 +45,15 @@ function socketConnect(io) {
     }
 
     function emitEditorUsers(editor) {
-        console.log('should be here', editor.parent_room)
-        io.to(editor?.parent_room).emit('editor_users_updated', {
-            editors: arrayEditors.filter(e => e.parent_room === editor?.parent_room)
-        });
+        if (editor?.parent_room) {
+            io.to(editor.parent_room).emit('editor_users_updated', {
+                editors: arrayEditors.filter(e => e.parent_room === editor.parent_room)
+            });
+        }
     }
 
     io.on('connection', (socket) => {
-        console.log('Socket.io connected.');
-        console.log(socket.id);
+        console.log(`Socket.io connected: ${socket.id}`);
 
         socket.emit('get_socket_id', {
             socket_id: socket.id
@@ -102,7 +102,7 @@ function socketConnect(io) {
                 socket.join(room_id);
                 emitRoomUsers(room);
             } catch (e) {
-                console.log('join_room Error: ' + e);
+                console.error('join_room Error: ' + e);
             }
         });
         
@@ -127,7 +127,7 @@ function socketConnect(io) {
 
                 emitEditorUsers(editor);
             } catch (e) {
-                console.log('join_editor Error: ' + e);
+                console.error('join_editor Error: ' + e);
             }
         });
 
@@ -143,7 +143,7 @@ function socketConnect(io) {
 
                 emitEditorUsers(editor);
             } catch (e) {
-                console.log('leave_editor Error: ' + e);
+                console.error('leave_editor Error: ' + e);
             }
         });
 
@@ -167,7 +167,7 @@ function socketConnect(io) {
                 //array editors cleanup
                 arrayEditors = arrayEditors.filter(editor => editor.users.length > 0);
             } catch (e) {
-                console.log('disconnecting Error' + e);
+                console.error('disconnecting Error' + e);
             }
         });
                 
@@ -179,7 +179,7 @@ function socketConnect(io) {
                     file
                 });
             } catch (e) {
-                console.log('Socket.io error:' + e);
+                console.error('find_file Error:' + e);
             }
         })
 
@@ -200,16 +200,9 @@ function socketConnect(io) {
                         const no_record = hasNoRecord(file.history.length, file.contributions.length);
                         const same_record = hasSameRecord(file.history[0]?.content, code);
                         const closer_timestamp = hasCloserTimestamp(file.history[0]?.createdAt);
-                        console.log('no_record', no_record);
-                        console.log('same_record', same_record);
-                        console.log('closer_timestamp', closer_timestamp);
-                        console.log('date.now', Date.now());
-                        console.log(new Date(file.history[0]?.createdAt));                        
                         let can_store = !no_record ? !same_record && !closer_timestamp  : true;
                         
-                        if (!no_record ? !same_record && !closer_timestamp : true) {
-                            console.log('can_store', can_store);
-                            
+                        if (can_store) {                            
                             const new_history = {
                                 content: code,
                                 contributions: file.contributions,
@@ -242,7 +235,7 @@ function socketConnect(io) {
                     status: false,
                     message: 'Error updating code: ' + e.message
                 });
-                console.log('update_code Error:' + e);
+                console.error('update_code Error:' + e);
             }
         });
 
@@ -264,7 +257,7 @@ function socketConnect(io) {
                     status: false,
                     message: 'Error updating code: ' + e.message
                 });
-                console.log('update_code Error:' + e);
+                console.error('update_code Error:' + e);
             }
         });
 
@@ -339,7 +332,7 @@ function socketConnect(io) {
                 });
                 
             } catch (e) {
-                console.log('add_edit_count Error' + e);
+                console.error('add_edit_count Error' + e);
             }
         });
         
@@ -405,7 +398,7 @@ function socketConnect(io) {
                     file: null,
                     message: 'Error adding file.'
                 });
-                console.log('Socket.io error:' + e);
+                console.error('add_file Error:' + e);
             }            
         });
 
@@ -416,9 +409,6 @@ function socketConnect(io) {
                 if (editor && editor.users.length > 0) {
                     const hasUsersEditing = editor.users.length >= 2;
                     const onlyUserIsEditing = editor.users.length === 1 && editor.users.every(user => user.socket_id === socket.id);
-
-                    console.log('hasUsersEditing', hasUsersEditing);
-                    console.log('onlyUserIsEditing', onlyUserIsEditing);
 
                     if (hasUsersEditing || !onlyUserIsEditing) {
                         return socket.emit('file_deleted', {
@@ -442,7 +432,7 @@ function socketConnect(io) {
                     message: 'Error deleting file.'
                 });
 
-                console.log('delete_file Error:' + e);
+                console.error('delete_file Error:' + e);
             }
         });
 
@@ -465,7 +455,7 @@ function socketConnect(io) {
                 });
                 
             } catch (e) {
-                console.log('load_notepad Error' + e);
+                console.error('load_notepad Error' + e);
             }
         });
         socket.on('load_messages', async ({ room_id }) => {
@@ -479,7 +469,7 @@ function socketConnect(io) {
                 });
 
             } catch (e) {
-                console.log('load_messages Error:' + e);
+                console.error('load_messages Error:' + e);
             }
         });
 
@@ -502,7 +492,7 @@ function socketConnect(io) {
                 io.in(room_id).emit('update_messages', { new_message });
             
             } catch (e) {
-                console.log('send_message Error:' + e);
+                console.error('send_message Error:' + e);
             }
         });
 
@@ -516,7 +506,7 @@ function socketConnect(io) {
                     createdAt 
                 });
             } catch (e) {
-                console.log('delete_message Error:' + e);
+                console.error('delete_message Error:' + e);
             }
         })
 
@@ -534,7 +524,7 @@ function socketConnect(io) {
                 });
 
             } catch (e) {
-                console.log('load_feedback Error:' + e);
+                console.error('load_feedback Error:' + e);
             }
         });
 
@@ -563,7 +553,7 @@ function socketConnect(io) {
                 });
 
             } catch (e) {
-                console.log('submit_feedback Error:' + e);
+                console.error('submit_feedback Error:' + e);
             }
         });
 
@@ -573,10 +563,6 @@ function socketConnect(io) {
                              .select('feedback')
                              .lean();
                 const feed = room.feedback.find(feed => feed.feedback_id === feedback_id);
-
-                console.log('feed', feed);
-                console.log(room.feedback.map(f => f.feedback_id));
-                console.log('id: ', feedback_id)
 
                 if (feed && !feed.reacts.includes(react.uid)) {
                     await assignedRoomModel.updateOne({ room_id, 'feedback.feedback_id': feedback_id }, {
@@ -590,7 +576,7 @@ function socketConnect(io) {
                     });
                 }
             } catch (e) {
-                console.log('react_to_feedback Error:' + e);
+                console.error('react_to_feedback Error:' + e);
             }
         });
 
@@ -604,7 +590,7 @@ function socketConnect(io) {
                     feedback_id
                 });
             } catch (e) {
-                console.log('delete_feedback Error:', e);
+                console.error('delete_feedback Error:', e);
             }
         });
 
@@ -640,7 +626,7 @@ function socketConnect(io) {
                     status: false,
                     message: 'Error updating code: ' + e.message,
                 });
-                console.log('update_code_solo Error:', e);
+                console.error('update_code_solo Error:', e);
             }
         });
     });
