@@ -42,7 +42,7 @@ roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, r
         }
 
         if (req.user.position === 'Professor') {
-            if (!verifyProfessor(activity.class_id, req.user.uid)) {
+            if (!await verifyProfessor(activity.class_id, req.user.uid)) {
                 return res.status(403).json({ status: false, message: 'Not a part of this room.'});
             }
 
@@ -219,7 +219,6 @@ roomRouter.get('/api/view-output', middlewareAuth, async (req, res) => {
                 return res.status(404).json({ status: false, message: 'File not found.'});
             }
 
-            
             if (req.user.position === 'Student') {
                 const team = await teamModel.findOne({ team_id: room.owner_id })
                              .select('members');
@@ -237,7 +236,7 @@ roomRouter.get('/api/view-output', middlewareAuth, async (req, res) => {
                     return res.status(404).json({ status: false, message: 'Activity not found.'});
                 }
 
-                if (!verifyProfessor(activity.class_id, req.user.uid)) {
+                if (!await verifyProfessor(activity.class_id, req.user.uid)) {
                     return res.status(403).json({ status: false, message: 'Not a part of this room.'});
                 }
             }

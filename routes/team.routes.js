@@ -1,18 +1,15 @@
 const studentModel = require('../models/students.model');
-const professorModel = require('../models/professors.model');
-const activityModel = require('../models/activities.model');
 const teamModel = require('../models/teams.model');
 const classModel = require('../models/classes.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const { setMemberInfo } = require('../utils/setInfo');
 const middlewareAuth = require('../middleware');
-const { verifyStudent, verifyProfessor } = require('../utils/verifyAccess');
+const { verifyStudent } = require('../utils/verifyAccess');
 const generateNanoId = require('../utils/generateNanoId');
 const { notifyStudents, notifyProfessor } = require('../utils/notifySelector');
 
 const express = require('express');
 const teamRouter = express.Router();
-const { v4: uuid } = require('uuid');
 
 teamRouter.get('/api/get-teams', middlewareAuth, async (req, res) => {
     try {
@@ -84,7 +81,7 @@ teamRouter.post('/api/get-team-details', middlewareAuth, async (req, res) => {
         .select('course_code section professor students')
         .lean();
 
-        let access = false;
+        let access = null;
 
         if (req.user.position === 'Professor' && req.user.uid === class_data.professor) {
             access = 'write';
@@ -92,9 +89,13 @@ teamRouter.post('/api/get-team-details', middlewareAuth, async (req, res) => {
         } else if (req.user.position === 'Student') {
             if (verifyStudent(team.members, req.user.uid)) {
                 access = 'write';
-            } else if (!verifyStudent(team.members, req.user.uid) && verifyStudent(class_data.students, req.user.uid)) {
+            } else if (verifyStudent(class_data.students, req.user.uid)) {
                 access = 'read';
             }
+        }
+
+        if (!access) {
+            return res.status(403).json({ status: false, message: 'You do not have access to this team.' });
         }
 
         team.members = await setMemberInfo(team.members);
@@ -308,9 +309,5 @@ async function checkStudentAvailability(team_id, uid, checker) {
 
     return { status: 'ok', code: 200, team, message: `${checker} available.` };
 }
-
-
-
-
 
 module.exports = teamRouter;

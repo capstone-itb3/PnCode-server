@@ -1,7 +1,8 @@
 const classModel = require('../models/classes.model');
 
-async function verifyStudent(memberArray, uid) {
-    return memberArray.includes(uid);
+function verifyStudent(memberArray, uid) {
+    console.log(memberArray.some(u => u === uid) === true)
+    return memberArray.some(u => u === uid);
 }
 
 async function verifyProfessor(class_id, professor) {

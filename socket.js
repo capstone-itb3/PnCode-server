@@ -38,9 +38,10 @@ function socketConnect(io) {
         return arrayEditors.find(editor => editor.id === editor_id);
     }
 
-    function emitRoomUsers(room) {
+    function emitRoomUsers(room, action, first_name) {
         io.to(room.id).emit('room_users_updated', { 
-            users: arrayRooms.find(r => r.id === room.id)?.users 
+            users: arrayRooms.find(r => r.id === room.id)?.users,
+            message: first_name ? `${first_name} has ${action} the room.` : null,
         });
     }
 
@@ -71,36 +72,31 @@ function socketConnect(io) {
                 }
         
                 const alreadyJoined = room.users.find(user => user.user_id === user_id);
+                let cursor = {};
                 
                 if (!alreadyJoined) {
-                    let cursor;
                     if (position === 'Student') {
                         do {
                             cursor = colors[random.uint32() % colors.length];
-                        } while (room.users.find(user => user.cursor.color === cursor.color) && 
-                                room.users.length < colors.length);
+                        } while (room.users.some(user => user.cursor.color === cursor.color)
+                                 && room.users.length < colors.length);
 
                     } else {
                         cursor = { color: 'gray', light: '#80808033' };
-                    }        
-                    room.users.push({   
-                        socket_id: socket.id,
-                        user_id, 
-                        first_name,
-                        last_name,
-                        cursor,
-                        position
-                    });
-
-                } else {
-                    room.users.push({
-                        socket_id: socket.id,
-                        user_id,
-                        cursor: alreadyJoined.cursor,
-                    })
+                    }
                 }
+
+                room.users.push({
+                    socket_id: socket.id,
+                    user_id,
+                    first_name,
+                    last_name,
+                    cursor: alreadyJoined ? alreadyJoined.cursor : cursor,
+                    position
+                });
+
                 socket.join(room_id);
-                emitRoomUsers(room);
+                emitRoomUsers(room, 'joined', first_name);
             } catch (e) {
                 console.error('join_room Error: ' + e);
             }
@@ -152,9 +148,11 @@ function socketConnect(io) {
                 const room = arrayRooms.find(r => r.users.find(user => user.socket_id === socket.id));
                 
                 if (room) {
+                    const disconnector = room.users.find(user => user.socket_id === socket.id);
                     room.users = room.users.filter(user => user.socket_id !== socket.id);
+
                     socket.leave(room.id);
-                    emitRoomUsers(room);
+                    emitRoomUsers(room, 'left', disconnector?.first_name);
                 }
                 //array rooms cleanup
                 arrayRooms = arrayRooms.filter(room => room.users.length > 0);
