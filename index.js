@@ -20,12 +20,13 @@ const teamRouter = require('./routes/team.routes');
 const activityRouter = require('./routes/activity.routes');
 const adminRouter = require('./admin/admin.routes');
 
-
 //*Socket.io connection
 const socketConnect = require('./socket');
 
 //*PORT the server uses
 const PORT = process.env.PORT || 5000;
+
+const fileModel = require('./models/files.model');
 
 app.use(cors());
 app.use(express.json());
@@ -84,3 +85,31 @@ mongoose.connect(uri).then(() => {
 }).catch((err) => {
     console.log('Error. Connection failed.', err);
 });
+
+app.get('/view/:room_id/:file_name', async (req, res) => {
+  try {    
+    const file = await fileModel.findOne({ 
+      room_id: req.params.room_id, 
+      name: req.params.file_name 
+    });
+
+    if (!file) {
+      return res.status(404).send('File not found.');
+    }
+
+    const type = () => {
+      if (file.type === 'html') return 'text/html';
+      else if (file.type === 'js') return 'text/javascript';
+      else if (file.type === 'css') return 'text/css';
+    }
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Content-Type', type());
+
+    return res.send(file.content);
+  } catch (e) {
+    console.log(e);
+    return res.status(500).json({ status: false, message: 'Server error. Retrieving file failed.' });
+  }
+})
