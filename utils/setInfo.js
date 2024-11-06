@@ -44,7 +44,7 @@ async function setCourseInfoProfessor(class_data) {
 
 async function setMemberInfo(members) {
     return await studentModel.find({ uid: { $in: members } })
-           .select('uid first_name last_name')
+           .select('uid first_name last_name email')
            .lean();
 }
 

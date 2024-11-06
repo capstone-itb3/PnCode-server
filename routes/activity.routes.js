@@ -198,7 +198,7 @@ activityRouter.get('/api/get-activity-details', middlewareAuth, async (req, res)
                                         activity: activity, 
                                         rooms: rooms,
                                         course_code: class_data.course_code,
-                                        section: class_data.course_code });
+                                        section: class_data.section });
         
     } catch (e) {
         console.log(e);
