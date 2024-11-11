@@ -161,3 +161,9 @@ app.get('/view/solo/:room_id/:file_name', async (req, res) => {
     return res.status(500).json({ status: false, message: 'Server error. Retrieving file failed.' });
   }
 });
+
+app.get('/loaderio-70ec60b7dea504301b50ba59b116a4e8/', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  return res.send('loaderio-70ec60b7dea504301b50ba59b116a4e8');
+});
