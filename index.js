@@ -168,9 +168,4 @@ app.get('/loaderio-70ec60b7dea504301b50ba59b116a4e8/', (req, res) => {
   return res.send('loaderio-70ec60b7dea504301b50ba59b116a4e8');
 });
 
-app.get('/current-time', (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET');
-  console.log(new Date());
-  return res.send(new Date());
-});
+app.get('/api/server-date', (req, res) => res.status(200).json({ date: new Date() }));

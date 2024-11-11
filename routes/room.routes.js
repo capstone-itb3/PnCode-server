@@ -77,9 +77,6 @@ roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, r
             activity.other_rooms = [];
         }
 
-        console.log('current date', new Date());
-
-
         const files = await fileModel.find({ room_id: req.body.room_id }).lean();
         return res.status(200).json({   status: 'ok', 
                                         room: assigned_room,
