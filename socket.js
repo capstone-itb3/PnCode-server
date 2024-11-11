@@ -555,24 +555,33 @@ function socketConnect(io) {
             }
         });
 
-        socket.on('react_to_feedback', async ({ room_id, feedback_id, react}) => {
+        socket.on('react_to_feedback', async ({ room_id, feedback_id, react, action}) => {
             try {
                 const room = await assignedRoomModel.findOne({ room_id: room_id, 'feedback.feedback_id': feedback_id })
                              .select('feedback')
                              .lean();
                 const feed = room.feedback.find(feed => feed.feedback_id === feedback_id);
 
-                if (feed && !feed.reacts.includes(react.uid)) {
+                if (!feed) {
+                    return;
+                }
+
+                if (!feed.reacts.includes(react.uid) && action === 'heart') {
                     await assignedRoomModel.updateOne({ room_id, 'feedback.feedback_id': feedback_id }, {
                         $push: { 'feedback.$.reacts': react.uid }
                     });
-
-                    io.to(room_id).emit('new_feedback_react', {
-                        feedback_id,
-                        react,
-                        socket_id: socket.id
+                } else if (feed.reacts.includes(react.uid) && action === 'unheart') {
+                    await assignedRoomModel.updateOne({ room_id, 'feedback.feedback_id': feedback_id }, {
+                        $pull: { 'feedback.$.reacts': react.uid }
                     });
                 }
+
+                io.to(room_id).emit('new_feedback_react', {
+                    feedback_id,
+                    react,
+                    socket_id: socket.id,
+                    action,
+                });
             } catch (e) {
                 console.error('react_to_feedback Error:' + e);
             }

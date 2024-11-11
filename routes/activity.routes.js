@@ -137,6 +137,7 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
                 room_name: `${team.team_name}'s Room`,
                 activity_id: req.query.activity_id,
                 owner_id: team.team_id,
+                notes: '//TODO things for the activity...',
             });
 
             console.log(new_room);
@@ -147,16 +148,7 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
                 name: `index.html`,
                 type: 'html',
                 room_id: new_room,
-                content:    '<!DOCTYPE html>'
-                        + '\n<html lang="en">'
-                        + '\n<head>'
-                        + '\n<meta charset="UTF-8" />'
-                        + '\n<meta name="viewport" content="width=device-width, initial-scale=1.0" />'
-                        + '\n<title></title>'
-                        + '\n</head>'
-                        + '\n<body>'
-                        + '\n</body>'
-                        + '\n</html>',
+                content:  '',
                 history: []
             });
     
