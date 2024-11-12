@@ -87,7 +87,6 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
             subject_name: req.body.activity_name,
             subject_id: new_id,
         }
-
         
         notifyStudents(class_data.students, notification);
 
@@ -180,15 +179,23 @@ activityRouter.get('/api/get-activity-details', middlewareAuth, async (req, res)
         }
 
         const class_data = await classModel.findOne({ class_id: activity.class_id })
-        .select('course_code section')
-        .lean();
+                           .select('course_code section')
+                           .lean();
 
         const rooms = await assignedRoomModel.find({ activity_id: req.query.activity_id })
-        .lean();
+                      .select('room_id room_name owner_id')
+                      .lean();
+
+        const teams = await teamModel.find({ class_id: activity.class_id })
+                      .select('team_id team_name')
+                      .lean();
+
+        const no_rooms = teams.filter(t => rooms.some(r => r.owner_id === t.team_id) === false);
 
         return res.status(200).json({   status: 'ok', 
                                         activity: activity, 
                                         rooms: rooms,
+                                        no_rooms: no_rooms,
                                         course_code: class_data.course_code,
                                         section: class_data.section });
         

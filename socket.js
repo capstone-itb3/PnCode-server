@@ -346,26 +346,12 @@ function socketConnect(io) {
                     });
                 }
 
-                let content = ''
-                if (file_type === 'html') {
-                    content = '<!DOCTYPE html>'
-                            + '\n<html lang="en">'
-                            + '\n<head>'
-                            + '\n<meta charset="UTF-8" />'
-                            + '\n<meta name="viewport" content="width=device-width, initial-scale=1.0" />'
-                            + '\n<title></title>'
-                            + '\n</head>'
-                            + '\n<body>'
-                            + '\n</body>'
-                            + '\n</html>';
-                }
-                
                 const new_file = {
                     file_id: uuid().toString(),
                     name: `${file_name}.${file_type}`,
                     type: file_type,
                     room_id: room_id,
-                    content: content,
+                    content: '',
                 }
                 
                 const already_exists = await fileModel.findOne({ 
