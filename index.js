@@ -3,6 +3,9 @@ const express = require('express');
 const app = express();
 const http = require('http');
 
+//*Environmental variables
+require('dotenv').config();
+
 //*MongoDB module imports
 const mongoose = require('mongoose');
 const cors = require('cors');

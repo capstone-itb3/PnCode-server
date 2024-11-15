@@ -62,13 +62,14 @@ const studentSchema = new mongoose.Schema({
         required: false,
         default: []
     },
-    
-    //the validation code of the account
-    validationCode: {
+    isVerified: {
+        type: Boolean,
+        default: false,
+    },
+    verificationToken: {
         type: String,
-        required: false,
-        default: null
-    }
+        required: false
+    },
 }, { timestamps: true, collection: 'students' });
 
 const studentModel = mongoose.model('students', studentSchema);

@@ -9,7 +9,7 @@ const middlewareAdmin = async (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, 'secret123capstoneprojectdonothackimportant0987654321');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET_ADMIN);
 
         const user = await adminModel.findOne({ admin_uid: decoded.admin_uid }).lean();
 

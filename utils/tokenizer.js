@@ -10,7 +10,7 @@ function tokenizer(user, position) {
                     preferences: user.preferences
                 }
 
-    return jwt.sign(token, 'secret123capstoneprojectdonothackimportant0987654321');
+    return jwt.sign(token, process.env.JWT_SECRET, { expiresIn: '1d' });
 };
 
 module.exports = { tokenizer };

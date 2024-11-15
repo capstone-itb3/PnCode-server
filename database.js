@@ -1,6 +1,6 @@
 const { MongoClient, ServerApiVersion } = require('mongodb');
 // const uri = "mongodb+srv://itb3-serveruser:rTcCwFcHmLcSsAjTps@pncode-cluster.6cbof.mongodb.net/pncode_db?retryWrites=true&w=majority&appName=pncode-cluster";
-const uri = "mongodb+srv://itb3-serveradmin:rTcCwFcHmLcSsAjTps-admin@pncode-cluster.6cbof.mongodb.net/pncode_db?retryWrites=true&w=majority&appName=pncode-cluster";
+const uri = `mongodb+srv://itb3-serveradmin:${process.env.MONGODB_PASSWORD}@pncode-cluster.6cbof.mongodb.net/pncode_db?retryWrites=true&w=majority&appName=pncode-cluster`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {

@@ -7,7 +7,20 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const middlewareAuth = require('../middleware');
 
+const { v4: uuidv4 } = require('uuid');
+const nodemailer = require('nodemailer');
+
 const accountRouter = express.Router();
+
+const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.APP_PASSWORD
+    }
+});
 
 //*POST function when user registers
 accountRouter.post('/api/register', async (req, res) => {
@@ -37,45 +50,101 @@ accountRouter.post('/api/register', async (req, res) => {
             return res.status(400).json({   status: false, 
                                             message: 'Password and Re-typed Password doesn\'t match.'});
         }
-        if (await studentModel.findOne({ email: req.body.email })) {
-                return res.status(400).json({   status: false, 
-                                                message: 'The email address you entered is already registered. ' 
-                                                    + 'If you think this is a mistake, please contact the MISD.'});
-        } 
 
+        const existingUser = await studentModel.findOne({ email: req.body.email })
+                             .select('isVerified');
+        
+        if (existingUser && existingUser.isVerified) {
+            return res.status(400).json({   status: false, 
+                                            message: 'The email address you entered is already registered.'});
+        }
+
+        const verificationToken = uuidv4();
         const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(req.body.password, salt);                
 
-        let new_id = 0, already_exists = true;
-        while (already_exists) {
-            new_id = generateNanoId();
-            already_exists = await studentModel.findOne({ uid: new_id });
-            !already_exists ? already_exists = await professorModel.findOne({ uid: new_id }) : null;            
+        if (existingUser && !existingUser.isVerified) {
+            await studentModel.updateOne({ email: req.body.email },
+                {
+                    password: passwordHash,
+                    first_name: req.body.first_name,
+                    last_name: req.body.last_name,
+                    verificationToken: verificationToken
+                }
+            );
+        } else {
+            let new_id = 0, already_exists = true;
+            while (already_exists) {
+                new_id = generateNanoId();
+                already_exists = await studentModel.findOne({ uid: new_id });
+                !already_exists ? already_exists = await professorModel.findOne({ uid: new_id }) : null;            
+            }
+
+            await studentModel.create({
+                uid: new_id,
+                email: req.body.email,
+                password: passwordHash,
+                first_name: req.body.first_name,
+                last_name: req.body.last_name,
+                notifications: [],
+                isVerified: false,
+                verificationToken: verificationToken
+            });
         }
 
-        await studentModel.create({
-            uid: new_id,
-            email: req.body.email,
-            password: passwordHash,
-            first_name: req.body.first_name,
-            last_name: req.body.last_name,
-            notifications: [],
-            infoChangeable: false,
+        // Send verification email
+        const verificationLink = `${process.env.FRONTEND_URL}/verify/${verificationToken}`;
+        await transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: req.body.email,
+            subject: 'Verify Your Email - PnCode',
+            html: `
+                <div>
+                <p>
+                    Hi ${req.body.first_name},
+                </p>
+                <p>
+                    You've just registered an account to PnCode. To start using your account, please verify your email address by clicking <a href='${verificationLink}'> this link</a>.
+                </p>
+                <p>
+                    If you did not create an account with PnCode, please do not click the link and ignore this email.
+                </p>
+                </div> 
+            `
         });
 
         return res.status(200).json({   status: 'ok', 
-                                        message: 'Sign up successful. You can now log in.'});
+                                        message: 'Sign up successful. Please check your email to verify your account.' });
     } catch (err) {
         return res.status(500).json({   status: false, 
                                         message: 'Error occured while processing sign up. Please try again.'});
     }
 });
 
+//*POST function when student clicks an email verification link
+accountRouter.post('/api/verify-email/:token', async (req, res) => {
+    try {
+        const student = await studentModel.findOne({ verificationToken: req.params.token });
+        if (!student) {
+            return res.status(400).json({ status: false, message: 'Invalid verification token' });
+        }
+
+        await studentModel.updateOne({ verificationToken: req.params.token },
+            { $set: { isVerified: true, verificationToken: null } }
+        );
+
+        return res.status(200).json({ status: 'ok', message: 'Email verified successfully' });
+    } catch (err) {
+        return res.status(500).json({ status: false, message: 'Verification failed' });
+    }
+});
+
+
 //*POST function when student logs in
 accountRouter.post('/api/login', async (req, res) => {
     try {
         const user_data = await studentModel.findOne({ email: req.body.email });
-        if (!user_data) {
+        if (!user_data || !user_data?.isVerified) {
             return res.status(400).json({  status: false,
                                             message: 'Email or password is incorrect.'});
         }

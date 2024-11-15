@@ -10,7 +10,7 @@ const middlewareAuth = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'secret123capstoneprojectdonothackimportant0987654321');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     if (decoded?.position === 'Professor') {
       const user = await professorModel.findOne({ uid: decoded.uid }).lean();
