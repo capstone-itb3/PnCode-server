@@ -7,7 +7,7 @@ const courseSchema = new mongoose.Schema({
     course_title: {
         type: String
     }
-}, { collection: 'courses' });
+}, { collection: 'courses', timestamps: true });
 
 const courseModel = mongoose.model('courses', courseSchema);
 

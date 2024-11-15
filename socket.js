@@ -622,6 +622,19 @@ function socketConnect(io) {
                 console.error('update_code_solo Error:', e);
             }
         });
+
+        socket.on('share_log', async ({ room_id, log, name }) => {
+            try {
+                log.logger = name;
+    
+                return socket.to(room_id).emit('add_shared_log', {
+                    new_log: log,
+                    socket_id: socket.id
+                });
+            } catch (e) {
+                console.error('share_log Error:', e);
+            }
+        })
     });
 }
 

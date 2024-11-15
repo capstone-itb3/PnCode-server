@@ -63,12 +63,6 @@ const studentSchema = new mongoose.Schema({
         default: []
     },
     
-    //if the info of the student is changeable
-    infoChangeable: {
-        type: Boolean,
-        required: false,
-        default: true
-    },
     //the validation code of the account
     validationCode: {
         type: String,

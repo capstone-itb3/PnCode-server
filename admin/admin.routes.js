@@ -59,7 +59,7 @@ adminRouter.post('/api/login/admin', async (req, res) => {
 adminRouter.post('/api/admin/students', middlewareAdmin, async (req, res) => {
     try {
         const students = await studentModel.find({})
-        .select('uid first_name last_name email')
+        .select('uid first_name last_name email createdAt updatedAt')
         .lean();
 
         students.sort((a, b) => a.last_name.localeCompare(b.last_name));
@@ -78,7 +78,7 @@ adminRouter.post('/api/admin/students', middlewareAdmin, async (req, res) => {
 adminRouter.post('/api/admin/professors', middlewareAdmin, async (req, res) => {
     try {
         const professors = await professorModel.find({})
-        .select('uid first_name last_name email')
+        .select('uid first_name last_name email createdAt updatedAt')
         .lean();
 
         professors.sort((a, b) => a.last_name.localeCompare(b.last_name));
@@ -115,7 +115,7 @@ adminRouter.get('/api/admin/courses', middlewareAdmin, async (req, res) => {
 adminRouter.post('/api/admin/classes', middlewareAdmin, async (req, res) => {
     try {
         let classes = await classModel.find({})
-        .select('class_id course_code section professor students requests')
+        .select('class_id course_code section professor students requests createdAt updatedAt')
         .lean();
 
         classes = await Promise.all(classes.map(setCourseInfoAdmin));
@@ -124,12 +124,12 @@ adminRouter.post('/api/admin/classes', middlewareAdmin, async (req, res) => {
                          .select('course_title');
         
             const students = await studentModel.find({ uid: { $in: class_data.students } })
-                             .select('uid first_name last_name')
+                             .select('uid first_name last_name email')
                              .lean();
             students.sort((a, b) => a.last_name.localeCompare(b.last_name));
             
             const requests = await studentModel.find({ uid: { $in: class_data.requests } })
-                             .select('uid first_name last_name')
+                             .select('uid first_name last_name email')
                              .lean();
             requests.sort((a, b) => a.last_name.localeCompare(b.last_name));
 
@@ -145,7 +145,9 @@ adminRouter.post('/api/admin/classes', middlewareAdmin, async (req, res) => {
                 students: students,
                 requests: requests,
                 professor_uid: professor ? professor.uid : '',
-                professor: professor ? `${professor.first_name} ${professor.last_name}` : 'TBA'
+                professor: professor ? `${professor.first_name} ${professor.last_name}` : 'TBA',
+                createdAt: class_data.createdAt,
+                updatedAt: class_data.updatedAt
             }
         }
 

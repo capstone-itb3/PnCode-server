@@ -28,6 +28,7 @@ const PORT = process.env.PORT || 5000;
 
 const fileModel = require('./models/files.model');
 const soloRoomModel = require('./models/solo_rooms.model');
+const consoleScript = require('./utils/consoleScript');
 
 app.use(cors());
 app.use(express.json());
@@ -107,13 +108,14 @@ app.get('/view/:room_id/:file_name', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     res.setHeader('Content-Type', type());
-
-    return res.send(file.content);
+    
+    return res.send(consoleScript(file.type) + file.content);
   } catch (e) {
     console.log(e);
     return res.status(500).json({ status: false, message: 'Server error. Retrieving file failed.' });
   }
 })
+// res.header('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://code.jquery.com; script-src-elem 'self' 'unsafe-inline' https://code.jquery.com");
 
 app.get('/view/solo/:room_id/:file_name', async (req, res) => {
   try {
@@ -134,16 +136,6 @@ app.get('/view/solo/:room_id/:file_name', async (req, res) => {
     if (!file) {
       return res.status(404).send('File not found.');
     }
-
-    // if (room.owner_id === req.user.uid) {
-    //     return res.status(200).json({   status: 'ok',
-    //                                     files: files,
-    //                                     active: file,
-    //                                     message: 'Files retrieved successfully.' });
-    // } else {
-    //     return res.status(403).json({ status: false, message: 'Not a part of this room.'});
-    // }
-    console.log('aaa');
 
     const type = () => {
       if (file.type === 'html') return 'text/html';
