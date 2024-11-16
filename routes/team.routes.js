@@ -10,6 +10,7 @@ const { notifyStudents, notifyProfessor } = require('../utils/notifySelector');
 
 const express = require('express');
 const teamRouter = express.Router();
+const { v4: uuid } = require('uuid');
 
 teamRouter.get('/api/get-teams', middlewareAuth, async (req, res) => {
     try {
@@ -174,7 +175,7 @@ teamRouter.post('/api/invite-student', middlewareAuth, async (req, res) => {
         }
 
         const already_invited = student.notifications.find(notification => {
-            return notification.type === 'invite' && notification.data.subject_id === req.body.team_id;
+            return notification.type === 'invite' && notification.subject_id === req.body.team_id;
         });
 
         if (already_invited) {
@@ -188,6 +189,7 @@ teamRouter.post('/api/invite-student', middlewareAuth, async (req, res) => {
         }
 
         const notification = {
+            notif_id: uuid(),
             source: `${req.user.first_name} ${req.user.last_name}`,
             for: null,
             type: 'invite',
@@ -225,6 +227,7 @@ teamRouter.post('/api/accept-team-invite', middlewareAuth, async (req, res) => {
         }
 
         const notification = {
+            notif_id: uuid(),
             source: `${req.user.first_name} ${req.user.last_name}`,
             for: 'has joined',
             type: 'team',

@@ -25,7 +25,6 @@ const transporter = nodemailer.createTransport({
 //*POST function when user registers
 accountRouter.post('/api/register', async (req, res) => {
     try {
-        //only acccpet space a-Z dash and dots 
         const name_regex = /^[a-zA-Z-.\s]+$/;
     
         if (!name_regex.test(req.body.first_name) || !name_regex.test(req.body.last_name)) {
@@ -92,24 +91,15 @@ accountRouter.post('/api/register', async (req, res) => {
             });
         }
 
-        // Send verification email
         const verificationLink = `${process.env.FRONTEND_URL}/verify/${verificationToken}`;
         await transporter.sendMail({
             from: process.env.EMAIL_USER,
             to: req.body.email,
             subject: 'Verify Your Email - PnCode',
             html: `
-                <div>
-                <p>
-                    Hi ${req.body.first_name},
-                </p>
-                <p>
-                    You've just registered an account to PnCode. To start using your account, please verify your email address by clicking <a href='${verificationLink}'> this link</a>.
-                </p>
-                <p>
-                    If you did not create an account with PnCode, please do not click the link and ignore this email.
-                </p>
-                </div> 
+                <p>Hi ${req.body.first_name},</p>
+                <p>You've just registered an account to PnCode. To start using your account, please verify your email address by clicking <a href='${verificationLink}'> this link</a>.</p>
+                <p>If you did not create an account with PnCode, please do not click the link and ignore this email.</p>
             `
         });
 
@@ -227,5 +217,85 @@ accountRouter.post('/api/update-notifications', middlewareAuth, async (req, res)
                                         message: 'Server error. Updating notifications failed.'});
     }
 });
+
+accountRouter.post('/api/forgot-password', async (req, res) => {
+    try {
+        const user = await studentModel.findOne({ email: req.body.email })
+                     .select('email first_name')
+                     .lean();
+
+        if (!user) {
+            return res.status(400).json({ status: false, message: 'Email not found.' });
+        }
+
+        const resetToken = uuidv4();
+        const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+        await studentModel.updateOne({ email: req.body.email }, { 
+            $set: { 
+                resetPasswordToken: resetToken,
+                resetPasswordExpires: Date.now() + 3600000 // 1 hour
+            } 
+        });
+
+        await transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: user.email,
+            subject: 'Password Reset Request - PnCode',
+            html: `
+                <p>Hi ${user.first_name},</p>
+                <p>You have sent a request to reset your password on PnCode. You can reset your password by clicking <a href="${resetLink}">this link</a>.
+                <p>The link will expire in 1 hour.</p>
+                <p>If you didn't request a password reset, please ignore this email.</p>
+            `
+        });
+
+        return res.status(200).json({ status: 'ok', message: 'Password reset link sent successfully.' });
+    } catch (e) {
+        console.log(e)
+        return res.status(500).json({ status: false, message: 'Failed to process password reset request.' });
+    }
+});
+
+accountRouter.post('/api/reset-password', async (req, res) => {
+    try {
+        if (req.body.password.length < 8) {
+            return res.status(400).json({   status: false, 
+                                            message: 'Password must have more than 8 characters' });
+        }
+
+        if (req.body.password !== req.body.conf_password) {
+            return res.status(400).json({   status: false, 
+                                            message: 'Password and Re-typed Password don\'t match.' });
+        }
+
+        const user = await studentModel.findOne({
+            resetPasswordToken: req.body.reset_link,
+            resetPasswordExpires: { $gt: Date.now() }
+        }).select('email').lean();
+
+        if (!user) {
+            return res.status(400).json({   status: false, 
+                                            message: 'Password reset link is invalid or has expired.' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(req.body.password, salt);
+
+        await studentModel.updateOne({ resetPasswordToken: req.body.reset_link }, {
+            $set: {
+                password: passwordHash,
+                resetPasswordToken: null,
+                resetPasswordExpires: null
+            }
+        });
+
+        return res.status(200).json({ status: 'ok', message: 'Password reset successful.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: 'Failed to reset password.' });
+    }
+});
+
 
 module.exports = accountRouter;

@@ -81,6 +81,7 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
         });
 
         const notification = {
+            notif_id: uuid(),
             source: `${req.user.first_name} ${req.user.last_name}`,
             for: `${class_data.course_code}`,
             type: 'activity',
@@ -129,8 +130,6 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
         } else {
             const new_room = generateNanoId();
 
-            console.log(new_room);
-
             await assignedRoomModel.create({
                 room_id: new_room,
                 room_name: `${team.team_name}'s Room`,
@@ -138,9 +137,6 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
                 owner_id: team.team_id,
                 notes: '//TODO things for the activity...',
             });
-
-            console.log(new_room);
-
             
             await fileModel.create({
                 file_id: generateNanoId(),

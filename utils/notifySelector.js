@@ -10,7 +10,7 @@ async function notifyStudents(users_id, notif) {
 }
 
 async function notifyProfessor(user_id, notif) {
-    await professorModel.updateMany({ uid: user_id },{
+    await professorModel.updateOne({ uid: user_id },{
         $push: {
             notifications: { $each: [notif], $position: 0 }
         }

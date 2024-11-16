@@ -5,13 +5,9 @@ const teamModel = require('../models/teams.model');
 const middlewareAuth = require('../middleware');
 const { setCourseInfoStudent, setCourseInfoProfessor, setMemberInfo } = require('../utils/setInfo');
 
-let customAlphabet;
-import('nanoid').then(nanoid => {
-    customAlphabet = nanoid.customAlphabet;
-});
-
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const { v4: uuid } = require('uuid');
 
 const classRouter = express.Router();
 
@@ -95,8 +91,13 @@ classRouter.post('/api/request-course', middlewareAuth, async (req, res) => {
 classRouter.post('/api/get-included-students', middlewareAuth, async (req, res) => {
     try {
         const class_data = await classModel.findOne({ class_id: req.body.class_id })
-        .select('students requests')
-        .lean();
+                           .select('students requests')
+                           .lean();
+
+        if (!class_data) {
+            return res.status(404).json({  status: false,
+                                            message: 'The class you entered does not exist.' });
+        }
 
         let students = await setMemberInfo(class_data.students);
         let requests = [];
@@ -126,21 +127,24 @@ classRouter.post('/api/get-included-students', middlewareAuth, async (req, res) 
 
 classRouter.post('/api/accept-request', middlewareAuth, async (req, res) => {
     try {
-        const class_data = await classModel.findOneAndUpdate({ class_id: req.body.class_id }, {
-            $pull: {
-                requests: req.body.uid
-            },
-            $push: {
-                students: req.body.uid
-            }
-        }).select('course_code section').lean();
-
+        const class_data = await classModel.findOne({ class_id: req.body.class_id })
+                           .select('course_code section students').lean();
+        
         if (!class_data) {
-            return res.status(400).json({  status: false,
+            return res.status(404).json({  status: false,
                                             message: 'This class does not anymore exist.' });
+        } else if (class_data.students.includes(req.body.uid)) {
+            return res.status(400).json({  status: false,
+                                            message: 'This student is already in the class.' });
         }
 
+        await classModel.updateOne({ class_id: req.body.class_id }, {
+            $pull: { requests: req.body.uid },
+            $push: { students: req.body.uid }
+        });
+
         const notification = {
+            notif_id: uuid(),
             source: `${req.user.first_name} ${req.user.last_name}`,
             type: 'class',
             for: 'accepted',
@@ -172,11 +176,12 @@ classRouter.post('/api/reject-request', middlewareAuth, async (req, res) => {
         }).select('course_code section').lean();
         
         if (!class_data) {
-            return res.status(400).json({  status: false,
+            return res.status(404).json({  status: false,
                                             message: 'This class does not anymore exist.' });
         }
 
         const notification = {
+            notif_id: uuid(),
             source: `${req.user.first_name} ${req.user.last_name}`,
             type: 'class',
             for: 'rejected',
@@ -189,7 +194,6 @@ classRouter.post('/api/reject-request', middlewareAuth, async (req, res) => {
                 notifications: { $each: [notification], $position: 0 }
             }
         });
-
 
         return res.status(200).json({  status: 'ok', message: 'Request rejected successfully.' });
     } catch (e) {
@@ -209,17 +213,16 @@ classRouter.post('/api/remove-student', middlewareAuth, async (req, res) => {
         });
 
         const class_data = await classModel.findOneAndUpdate({ class_id: req.body.class_id }, {
-            $pull: {
-                students: req.body.uid
-            }
+            $pull: { students: req.body.uid }
         }).select('course_code section').lean();
 
         if (!class_data) {
-            return res.status(400).json({  status: false,
+            return res.status(404).json({  status: false,
                                             message: 'This class does not anymore exist.' });
         }
 
         const notification = {
+            notif_id: uuid(),
             source: `${req.user.first_name} ${req.user.last_name}`,
             type: 'remove',
             for: 'class',
@@ -240,6 +243,85 @@ classRouter.post('/api/remove-student', middlewareAuth, async (req, res) => {
         return res.status(500).json({   status: false,
                                         message: 'Server error. Removing student failed.' });
     }
-})
+});
+
+classRouter.post('/api/get-other-students', middlewareAuth, async (req, res) => {
+    try {
+        if (req.user.position === 'Student') {
+            return res.status(403).json({  status: false,
+                                            message: 'You are not authorized to perform this action.' });
+        }
+        const class_data = await classModel.findOne({ class_id: req.body.class_id })
+                           .select('students').lean();
+        if (!class_data) {
+            return res.status(400).json({  status: false,
+                                            message: 'This class does not anymore exist.' });
+        }
+
+        const students = await studentModel.find({ uid: { $nin: class_data.students } })
+                         .select('uid first_name last_name email').lean();
+
+        return res.status(200).json({  status: 'ok', other_students: students });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Removing team failed.' });
+    }
+});
+
+classRouter.post('/api/add-student-to-class', middlewareAuth, async (req, res) => {
+    try {
+        if (req.user.position === 'Student') {
+            return res.status(403).json({  status: false,
+                                            message: 'You are not authorized to perform this action.' });
+        }
+
+        const class_data = await classModel.findOne({ class_id: req.body.class_id })
+                           .select('course_code section students').lean();
+
+        if (!class_data) {
+            return res.status(400).json({   status: false,
+                                            message: 'This class does not anymore exist.' });
+        } else if (class_data.students.includes(req.body.uid)) {
+            return res.status(400).json({   status: false,
+                                            message: 'This student is already in this class.' });
+        }
+
+        const student = await studentModel.findOne({ uid: req.body.uid })
+                        .select('uid').lean();
+
+        if (!student) {
+            return res.status(400).json({   status: false,
+                                            message: 'This student does not exist.' });
+        }
+        
+        await classModel.updateOne({ class_id: req.body.class_id }, {
+            $push: { students: req.body.uid },
+            $pull: { requests: req.body.uid }
+        })
+
+        const notification = {
+            notif_id: uuid(),
+            source: `${req.user.first_name} ${req.user.last_name}`,
+            type: 'add',
+            for: 'class',
+            subject_name: `${class_data.course_code} ${class_data.section}`,
+            subject_id: req.body.class_id,
+        }
+
+        await studentModel.updateOne({ uid: req.body.uid }, {
+            $push: {
+                notifications: { $each: [notification], $position: 0 }
+            }
+        });
+
+        return res.status(200).json({  status: 'ok', message: 'Student added successfully.' });
+    } catch(e) {
+        console.log(e);
+        return res.status(500).json({   status: false,
+                                        message: 'Server error. Adding student to class failed.' });
+    }
+});
+
 
 module.exports = classRouter;

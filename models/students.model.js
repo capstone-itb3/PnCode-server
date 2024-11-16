@@ -4,7 +4,6 @@ const notificationSchema = new mongoose.Schema({
     notif_id: {
         type: String,
         required: true,
-        default: parseInt(Date.now())
     },
     source: {
         type: String,
@@ -62,14 +61,26 @@ const studentSchema = new mongoose.Schema({
         required: false,
         default: []
     },
+
     isVerified: {
         type: Boolean,
         default: false,
     },
+
     verificationToken: {
         type: String,
         required: false
     },
+
+    resetPasswordToken: {
+        type: String,
+        required: false
+    },
+    
+    resetPasswordExpires: {
+        type: Date,
+        required: false
+    }    
 }, { timestamps: true, collection: 'students' });
 
 const studentModel = mongoose.model('students', studentSchema);
