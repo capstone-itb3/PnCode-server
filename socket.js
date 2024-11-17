@@ -195,10 +195,22 @@ function socketConnect(io) {
                     });
                     
                     if (store_history) {
-                        const no_record = hasNoRecord(file.history.length, file.contributions.length);
+                        const no_history_record = hasNoHistoryRecord(file.history.length);
+                        const no_contributions = hasNoContributions(file.contributions.length);
                         const same_record = hasSameRecord(file.history[0]?.content, code);
                         const closer_timestamp = hasCloserTimestamp(file.history[0]?.createdAt);
-                        let can_store = !no_record ? !same_record && !closer_timestamp  : true;
+                        let can_store = false;
+
+                        if (no_history_record && !no_contributions) {
+                            if (!same_record && !closer_timestamp) {
+                                can_store = true;
+                            }
+
+                        } else if (!no_history_record) {
+                            if (!same_record && !closer_timestamp) {
+                                can_store = true;
+                            }                            
+                        }
                         
                         if (can_store) {                            
                             const new_history = {
@@ -265,6 +277,7 @@ function socketConnect(io) {
                              .select('history contributions')
                              .lean();
 
+                file.history.sort((a, b) => a.createdAt - b.createdAt);
                 file.contributions = await setContributionInfo(file.contributions);                
                 file.contributions.sort((a, b) => b.edit_count - a.edit_count);
 
@@ -272,8 +285,22 @@ function socketConnect(io) {
                 async function setHistoryInfo(his) { 
                     his.contributions = await setContributionInfo(his.contributions);
                     his.contributions.sort((a, b) => b.edit_count - a.edit_count);
-
+                    
                     return his;
+                }
+
+                for (let i = 1; i < file.history.length; i++) { 
+                    file.history[i].contributions = file.history[i].contributions.map(cont => {
+                        const last_rec = file.history[i - 1].contributions.find(c => c.uid === cont.uid);
+                
+                        if (!last_rec) {
+                            return cont;
+                        }
+                
+                        const diff = cont.edit_count - last_rec.edit_count;
+                
+                        return { ...cont, diff };
+                    });
                 }
 
                 socket.emit('get_history_result', {
@@ -287,10 +314,11 @@ function socketConnect(io) {
                     status: false,
                     message: 'Error getting history: ' + e.mesage
                 });
+                console.log('get_history Error:' + e);
             }
         })
 
-        socket.on('add_edit_count', async ({ file_id, user_id }) => {
+        socket.on('add_edit_count', async ({ room_id, file_id, user_id, first_name, last_name }) => {
             try {
                 const file = await fileModel.findOne({ file_id })
                              .select('contributions')
@@ -322,11 +350,11 @@ function socketConnect(io) {
                     .lean();       
                 }
 
-                updated_file.contributions = await setContributionInfo(updated_file.contributions);
-                updated_file.contributions.sort((a, b) => b.edit_count - a.edit_count);
-    
-                io.to(file_id).emit('add_edit_count_result', {
-                    contributions: updated_file.contributions,
+                io.to(room_id).emit('add_edit_count_result', {
+                    file_id,
+                    user_id,
+                    first_name,
+                    last_name,
                 });
                 
             } catch (e) {
@@ -638,8 +666,11 @@ function socketConnect(io) {
     });
 }
 
-function hasNoRecord(history_length, contributions_length) {
-    return history_length === 0 && contributions_length === 0;
+function hasNoHistoryRecord(history_length) {
+    return history_length === 0;
+}
+function hasNoContributions(contributions_length) {
+    return contributions_length === 0;
 }
 function hasSameRecord(prev_code, new_code) {
    return prev_code === new_code;

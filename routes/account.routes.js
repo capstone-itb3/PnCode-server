@@ -93,7 +93,7 @@ accountRouter.post('/api/register', async (req, res) => {
 
         const verificationLink = `${process.env.FRONTEND_URL}/verify/${verificationToken}`;
         await transporter.sendMail({
-            from: process.env.EMAIL_USER,
+            from: `PnCode <${process.env.EMAIL_USER}>`,
             to: req.body.email,
             subject: 'Verify Your Email - PnCode',
             html: `
@@ -239,7 +239,7 @@ accountRouter.post('/api/forgot-password', async (req, res) => {
         });
 
         await transporter.sendMail({
-            from: process.env.EMAIL_USER,
+            from: `PnCode <${process.env.EMAIL_USER}>`,
             to: user.email,
             subject: 'Password Reset Request - PnCode',
             html: `

@@ -39,7 +39,7 @@ app.use(express.json());
 app.use((req, res, next) => {
     res.setHeader(
       "Access-Control-Allow-Origin",
-      "*"
+      `${process.env.FRONTEND_URL}`
     );
     res.setHeader(
       "Access-Control-Allow-Methods",
@@ -51,7 +51,6 @@ app.use((req, res, next) => {
     );
     res.setHeader("Access-Control-Allow-Credentials", true);
     res.setHeader("Access-Control-Allow-Private-Network", true);
-    //  Firefox caps this at 24 hours (86400 seconds). Chromium (starting in v76) caps at 2 hours (7200 seconds). The default value is 5 seconds.
     res.setHeader("Access-Control-Max-Age", 7200);
   
     next();

@@ -43,7 +43,7 @@ adminRouter.post('/api/login/admin', async (req, res) => {
             last_name: user.last_name,
         }
 
-        const signedToken = jwt.sign(token, 'secret123capstoneprojectdonothackimportant0987654321');
+        const signedToken = jwt.sign(token, process.env.JWT_SECRET_ADMIN, { expiresIn: '1d' });
 
         return res.status(200).json({   status: 'ok',
                                         token: signedToken,
