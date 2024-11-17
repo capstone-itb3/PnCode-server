@@ -147,6 +147,13 @@ accountRouter.post('/api/login', async (req, res) => {
                 
         const token = tokenizer(user_data, 'Student');
 
+        res.cookie('token', token, {
+            expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            domain: process.env.DOMAIN, 
+            sameSite: 'lax',
+            secure: true
+        });
+
         return res.status(200).json({   status: 'ok',
                                         token: token,
                                         message: 'Logged in successfully.' });

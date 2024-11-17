@@ -31,9 +31,12 @@ const PORT = process.env.PORT || 5000;
 
 const fileModel = require('./models/files.model');
 const soloRoomModel = require('./models/solo_rooms.model');
-const consoleScript = require('./utils/consoleScript');
 
 const allowedOrigins = ['https://pncode.site', process.env.FRONTEND_URL];
+const originReqHeader = (header) => allowedOrigins.includes(header) ? header : allowedOrigins[0];
+
+const consoleScript = require('./utils/consoleScript');
+const path = require('path');
 
 app.use(cors({
   origin: function(origin, callback) {
@@ -51,7 +54,7 @@ app.use(express.json());
 app.use((req, res, next) => {
   res.setHeader(
     "Access-Control-Allow-Origin",
-    allowedOrigins.includes(req.header('Origin')) ? req.header('Origin') : allowedOrigins[0]
+    originReqHeader(req.header('Origin'))
   );
   res.setHeader(
     "Access-Control-Allow-Methods",
@@ -70,9 +73,9 @@ app.use((req, res, next) => {
 
 const io = new Server(server, {
   cors: {
-      origin: "*",
-      // origin: "http://localhost:5173",
-      methods: ["GET", "POST"]
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
@@ -102,6 +105,7 @@ mongoose.connect(uri).then(() => {
     console.log('Error. Connection failed.', err);
 });
 
+
 app.get('/view/:room_id/:file_name', async (req, res) => {
   try {    
     const file = await fileModel.findOne({ 
@@ -119,7 +123,7 @@ app.get('/view/:room_id/:file_name', async (req, res) => {
       else if (file.type === 'css') return 'text/css';
     }
 
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', originReqHeader(req.header('Origin')));
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     res.setHeader('Content-Type', type());
     
@@ -129,14 +133,9 @@ app.get('/view/:room_id/:file_name', async (req, res) => {
     return res.status(500).json({ status: false, message: 'Server error. Retrieving file failed.' });
   }
 })
-// res.header('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://code.jquery.com; script-src-elem 'self' 'unsafe-inline' https://code.jquery.com");
 
 app.get('/view/solo/:room_id/:file_name', async (req, res) => {
   try {
-    console.log(req.params.room_id);
-    console.log(req.params.file_name);
-
-
     const room = await soloRoomModel.findOne({ room_id: String(req.params.room_id) })
                  .select('files owner_id')
                  .lean();
@@ -157,15 +156,21 @@ app.get('/view/solo/:room_id/:file_name', async (req, res) => {
       else if (file.type === 'css') return 'text/css';
     }
 
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Origin', originReqHeader(req.header('Origin')));
+    res.setHeader('Access-Control-Allow-Methods', 'GET');    
     res.setHeader('Content-Type', type());
 
-    return res.send(file.content);
+    return res.send(consoleScript(file.type) + file.content);
   } catch (e) {
     console.log(e);
     return res.status(500).json({ status: false, message: 'Server error. Retrieving file failed.' });
   }
+});
+
+app.get('/favicon.ico', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', originReqHeader(req.header('Origin')));
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  return res.sendFile(path.join(__dirname, 'public', 'favicon.ico'));
 });
 
 app.get('/loaderio-70ec60b7dea504301b50ba59b116a4e8/', (req, res) => {
