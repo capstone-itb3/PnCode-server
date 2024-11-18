@@ -3,8 +3,7 @@ const studentModel = require('./models/students.model');
 const professorModel = require('./models/professors.model'); 
 
 const middlewareAuth = async (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-
+  const token = req.cookies.token;
   if (!token) {
     return res.status(401).json({ status: false, message: 'No token, authorization denied' });
   }
@@ -25,7 +24,7 @@ const middlewareAuth = async (req, res, next) => {
     } else if (decoded?.position === 'Student') {
       const user = await studentModel.findOne({ uid: decoded.uid }).lean();
 
-      if (user) {
+      if (user && user.isVerified) {
         req.user = user;
         req.user.position = 'Student';
       } else {
@@ -39,6 +38,7 @@ const middlewareAuth = async (req, res, next) => {
     next();
     
   } catch (err) {
+    console.log(err);
     return res.status(401).json({ status: false, message: 'Token is not valid.' });
   }
 };

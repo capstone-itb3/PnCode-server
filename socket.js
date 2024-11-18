@@ -12,14 +12,12 @@ const { setContributionInfo, setMessageInfo, setFeedbackInfo } = require('./util
 const colors = [  
     { color: 'red',       light: '#ff000033' },
     { color: 'orange',    light: '#ffa50033' },
-    { color: 'yellow',    light: '#ffff0033' },
     { color: 'green',     light: '#00800033' },
     { color: 'blue',      light: '#0000ff33' },
     { color: 'purple',    light: '#80008033' },
     { color: 'hotpink',   light: '#ff69b433' },
     { color: 'brown',     light: '#a52a2a33' },
     { color: 'teal',      light: '#00808033' },
-    { color: 'aqua',      light: '#00ffff33' },
     { color: 'lime',      light: '#00ff0033' },
     { color: 'maroon',    light: '#80000033' },
     { color: 'coral',     light: '#ff7f5033' },
@@ -60,7 +58,7 @@ function socketConnect(io) {
             socket_id: socket.id
         });
 
-        socket.on('join_room', async ({ room_id, user_id, first_name, last_name, position }) => {
+        socket.on('join_room', async ({ room_id, user_id, first_name, last_name, position, cursorColor }) => {
             try {
                 let room = findRoom(room_id);
                 if (!room) {
@@ -71,18 +69,18 @@ function socketConnect(io) {
                     room = findRoom(room_id);
                 }
         
-                const alreadyJoined = room.users.find(user => user.user_id === user_id);
-                let cursor = {};
+                const alreadyJoined = cursorColor || room.users.find(user => user.user_id === user_id)?.cursor;
+                let new_cursor = {};
                 
                 if (!alreadyJoined) {
                     if (position === 'Student') {
                         do {
-                            cursor = colors[random.uint32() % colors.length];
-                        } while (room.users.some(user => user.cursor.color === cursor.color)
+                            new_cursor = colors[random.uint32() % colors.length];
+                        } while (room.users.some(user => user.cursor.color === new_cursor.color)
                                  && room.users.length < colors.length);
 
                     } else {
-                        cursor = { color: 'gray', light: '#80808033' };
+                        new_cursor = { color: 'gray', light: '#80808033' };
                     }
                 }
 
@@ -91,7 +89,7 @@ function socketConnect(io) {
                     user_id,
                     first_name,
                     last_name,
-                    cursor: alreadyJoined ? alreadyJoined.cursor : cursor,
+                    cursor: alreadyJoined || new_cursor,
                     position
                 });
 

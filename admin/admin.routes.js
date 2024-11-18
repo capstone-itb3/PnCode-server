@@ -37,20 +37,40 @@ adminRouter.post('/api/login/admin', async (req, res) => {
                                             message: 'Email or password is incorrect.'});
         }
 
-        const token = {
+        const token = jwt.sign({
             admin_uid: user.admin_uid,
             first_name: user.first_name,
-            last_name: user.last_name,
-        }
+            last_name: user.last_name            
+        }, process.env.JWT_SECRET_ADMIN, { expiresIn: '1d' });
 
-        const signedToken = jwt.sign(token, process.env.JWT_SECRET_ADMIN, { expiresIn: '1d' });
+        res.cookie('token', token, {
+            expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            domain: process.env.DOMAIN,
+            secure: process.env.SECURE,
+            httpOnly: true
+        });
 
         return res.status(200).json({   status: 'ok',
-                                        token: signedToken,
                                         message: 'Logged in successfully.' });
 
     } catch (err) {
         return res.status(500).json({   status: false, 
+                                        message: 'Server error. Logging in failed.' });
+    }
+});
+
+//*POST function to verify if admin
+adminRouter.post('/api/admin/verify-token', middlewareAdmin, async (req, res) => {
+    try {
+        const auth = {
+            admin_uid: req.user.admin_uid,
+            first_name: req.user.first_name,
+            last_name: req.user.last_name,
+        }
+
+        return res.status(200).json({   status: 'ok', auth: auth, message: 'Admin verified successfully.' });
+    } catch(e) {
+        return res.status(500).json({   status: false,
                                         message: err.message });
     }
 });
@@ -418,6 +438,7 @@ adminRouter.post('/api/admin/create-student', middlewareAdmin, async (req, res) 
             first_name: req.body.first_name,
             last_name: req.body.last_name,
             notifications: [],
+            isVerified: true
         });
 
         return res.status(200).json({   status: 'ok', 
@@ -587,7 +608,7 @@ adminRouter.post('/api/admin/update-professor', middlewareAdmin, async (req, res
                                             message: 'Professor account has been updated.'});
         }
     
-        await studentModel.updateOne({ uid: req.body.uid }, {
+        await professorModel.updateOne({ uid: req.body.uid }, {
             $set: {
                 email: req.body.email,
                 first_name: req.body.first_name,

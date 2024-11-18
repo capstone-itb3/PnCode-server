@@ -5,6 +5,7 @@ const generateNanoId = require('../utils/generateNanoId');
 
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const middlewareAuth = require('../middleware');
 
 const { v4: uuidv4 } = require('uuid');
@@ -149,14 +150,12 @@ accountRouter.post('/api/login', async (req, res) => {
 
         res.cookie('token', token, {
             expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            domain: process.env.DOMAIN, 
-            sameSite: 'lax',
-            secure: true
+            domain: process.env.DOMAIN,
+            secure: process.env.SECURE,
+            httpOnly: true
         });
 
-        return res.status(200).json({   status: 'ok',
-                                        token: token,
-                                        message: 'Logged in successfully.' });
+        return res.status(200).json({ status: 'ok', message: 'Logged in successfully' });
     } catch (err) {
         return res.status(500).json({   status: false, 
                                         message: err.message });
@@ -180,8 +179,14 @@ accountRouter.post('/api/login/professor', async (req, res) => {
 
         const token = tokenizer(user_data, 'Professor');
 
+        res.cookie('token', token, {
+            expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            domain: process.env.DOMAIN,
+            secure: process.env.SECURE,
+            httpOnly: true
+        });
+        
         return res.status(200).json({   status: 'ok',
-                                        token: token,
                                         message: 'Logged in successfully.' });
 
     } catch (err) {
@@ -302,6 +307,47 @@ accountRouter.post('/api/reset-password', async (req, res) => {
         console.log(e);
         return res.status(500).json({ status: false, message: 'Failed to reset password.' });
     }
+});
+
+accountRouter.post('/api/login-access', (req, res) => {
+    try {
+        const token = req.cookies?.token;
+        if (!token) return res.status(200).json({ access: true });
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded.position === 'Student') return res.status(401).json({ access: false });
+
+        return res.status(200).json({ access: true });
+    } catch (e) {
+        return res.status(500).json({ access: true });
+    }
+});
+
+accountRouter.post('/api/verify-token/', middlewareAuth, async (req, res) => {
+    try {
+        const auth = {
+            uid: req.user.uid,
+            first_name: req.user.first_name,
+            last_name: req.user.last_name,
+            position: req.user.position,
+        }
+
+        return res.status(200).json({  status: 'ok', auth, message: 'Token verified successfully.' });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({ status: false, message: 'Failed to verify token.' });
+    }
+});
+
+
+accountRouter.post('/api/signout', (req, res) => {
+    res.cookie('token', '', {
+        expires: new Date(0),
+        domain: process.env.DOMAIN,
+        sameSite: 'lax',
+        httpOnly: true
+    });
+    return res.status(200).json({ status: 'ok', message: 'Signed out successfully' });
 });
 
 

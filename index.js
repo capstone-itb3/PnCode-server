@@ -31,12 +31,22 @@ const PORT = process.env.PORT || 5000;
 
 const fileModel = require('./models/files.model');
 const soloRoomModel = require('./models/solo_rooms.model');
+const assignedRoomModel = require('./models/assigned_rooms.model');
+const teamModel = require('./models/teams.model');
+const activityModel = require('./models/activities.model');
 
 const allowedOrigins = ['https://pncode.site', process.env.FRONTEND_URL];
 const originReqHeader = (header) => allowedOrigins.includes(header) ? header : allowedOrigins[0];
 
+const { verifyStudent, verifyProfessor } = require('./utils/verifyAccess');
 const consoleScript = require('./utils/consoleScript');
+
 const path = require('path');
+const cookieParser = require('cookie-parser');
+
+const middlewareAuth = require('./middleware');
+const middlewareAdmin = require('./admin/adminMiddleware');
+
 
 app.use(cors({
   origin: function(origin, callback) {
@@ -50,6 +60,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.use((req, res, next) => {
   res.setHeader(
@@ -64,7 +75,7 @@ app.use((req, res, next) => {
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Content-Type-Options, Accept, X-Requested-With, Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
   );
-  res.setHeader("Access-Control-Allow-Credentials", true);
+  res.setHeader("Access-Control-Allow-Credentials", 'true');
   res.setHeader("Access-Control-Allow-Private-Network", true);
   res.setHeader("Access-Control-Max-Age", 7200);
 
@@ -106,7 +117,7 @@ mongoose.connect(uri).then(() => {
 });
 
 
-app.get('/view/:room_id/:file_name', async (req, res) => {
+app.get('/view/:room_id/:file_name', middlewareAuth, async (req, res) => {
   try {    
     const file = await fileModel.findOne({ 
       room_id: req.params.room_id, 
@@ -117,6 +128,24 @@ app.get('/view/:room_id/:file_name', async (req, res) => {
       return res.status(404).send('File not found.');
     }
 
+    const room = await assignedRoomModel.findOne({ room_id: req.params.room_id })
+                 .select('activity_id owner_id');
+
+    const activity = await activityModel.findOne({ activity_id: room.activity_id })
+                 .select('class_id');
+
+    const team = await teamModel.findOne({ team_id: room.owner_id })
+                 .select('members');
+      
+    !team ? team.members = [] : null;
+
+    if (req.user.position === 'Student' && !verifyStudent(team.members, req.user.uid)) {
+      return res.status(403).send('File not found.');
+    }
+    if (req.user.position === 'Professor' && !await verifyProfessor(activity.class_id, req.user.uid)) {
+      return res.status(403).send('File not found.');
+    }
+             
     const type = () => {
       if (file.type === 'html') return 'text/html';
       else if (file.type === 'js') return 'text/javascript';
@@ -126,7 +155,7 @@ app.get('/view/:room_id/:file_name', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', originReqHeader(req.header('Origin')));
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     res.setHeader('Content-Type', type());
-    
+
     return res.send(consoleScript(file.type) + file.content);
   } catch (e) {
     console.log(e);
@@ -166,6 +195,34 @@ app.get('/view/solo/:room_id/:file_name', async (req, res) => {
     return res.status(500).json({ status: false, message: 'Server error. Retrieving file failed.' });
   }
 });
+
+
+app.get('/view/admin/:room_id/:file_name', middlewareAdmin, async (req, res) => {
+  try {    
+    const file = await fileModel.findOne({ 
+      room_id: req.params.room_id, 
+      name: req.params.file_name 
+    });
+
+    if (!file) {
+      return res.status(404).send('File not found.');
+    }
+             
+    const type = () => {
+      if (file.type === 'html') return 'text/html';
+      else if (file.type === 'js') return 'text/javascript';
+      else if (file.type === 'css') return 'text/css';
+    }
+
+    res.setHeader('Access-Control-Allow-Origin', originReqHeader(req.header('Origin')));
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Content-Type', type());
+
+    return res.send(consoleScript(file.type) + file.content);
+  } catch (e) {
+    return res.status(500).json({ status: false, message: 'Server error. Retrieving file failed.' });
+  }
+})
 
 app.get('/favicon.ico', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', originReqHeader(req.header('Origin')));
