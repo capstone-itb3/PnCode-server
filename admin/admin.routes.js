@@ -27,13 +27,13 @@ adminRouter.post('/api/login/admin', async (req, res) => {
     try {
         const user = await adminModel.findOne({ email: req.body.email });
         if (!user) {
-            return res.status(400).json({  status: false,
+            return res.status(401).json({   status: false,
                                             message: 'Email or password is incorrect.'});
         }
 
         const validPassword = await bcrypt.compare(req.body.password, user.password);
         if (!validPassword) {
-            return res.status(400).json({  status: false,
+            return res.status(401).json({  status: false,
                                             message: 'Email or password is incorrect.'});
         }
 

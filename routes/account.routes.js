@@ -26,22 +26,37 @@ const transporter = nodemailer.createTransport({
 //*POST function when user registers
 accountRouter.post('/api/register', async (req, res) => {
     try {
-        const name_regex = /^[a-zA-Z-.\s]+$/;
-    
-        if (!name_regex.test(req.body.first_name) || !name_regex.test(req.body.last_name)) {
-            return res.status(400).json({   status: false,
-                                            message: 'Name inputs only accepts alphabets, dashes, and dots.'});
-        }
-
         req.body.first_name = req.body.first_name.trim();
         req.body.last_name = req.body.last_name.trim();
+        req.body.email = req.body.email.trim();
+
+        const name_regex = /^[a-zA-Z-.\s]+$/;
     
+        if (!name_regex.test(req.body.first_name)) {
+            return res.status(400).json({   status: false,
+                                            message: 'Name should only be alphabets, dashes, and dots.',
+                                            field: 'first_name'});
+        } else if (!name_regex.test(req.body.last_name)) {
+            return res.status(400).json({   status: false,
+                                            message: 'Name should only be alphabets, dashes, and dots.',
+                                            field: 'last_name'});
+        }
+        if (req.body.first_name.length > 35) {
+            return res.status(400).json({   status: false,
+                                            message: 'Name should not exceed 35 characters.',
+                                            field: 'first_name'});
+        } else if (req.body.last_name.length > 35) {
+            return res.status(400).json({   status: false,
+                                            message: 'Name should not exceed 35 characters.',
+                                            field: 'last_name'});
+        }
+
         const email_regex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
     
         if (!email_regex.test(req.body.email)) {
             return res.status(400).json({   status: false,
                                             message: 'Please enter a valid email address.'});
-        } 
+        }
         if (req.body.password.length < 8) {
             return res.status(400).json({   status: false, 
                                             message: 'Password must have more than 8 characters'});
@@ -134,15 +149,17 @@ accountRouter.post('/api/verify-email/:token', async (req, res) => {
 //*POST function when student logs in
 accountRouter.post('/api/login', async (req, res) => {
     try {
+        req.body.email = req.body.email.trim();
+
         const user_data = await studentModel.findOne({ email: req.body.email });
         if (!user_data || !user_data?.isVerified) {
-            return res.status(400).json({  status: false,
+            return res.status(401).json({  status: false,
                                             message: 'Email or password is incorrect.'});
         }
 
         const validPassword = await bcrypt.compare(req.body.password, user_data.password);
         if (!validPassword) {
-            return res.status(400).json({  status: false,
+            return res.status(401).json({  status: false,
                                             message: 'Email or password is incorrect.'});
         }
                 
@@ -165,15 +182,17 @@ accountRouter.post('/api/login', async (req, res) => {
 //*POST function when professor logs in
 accountRouter.post('/api/login/professor', async (req, res) => {
     try {
+        req.body.email = req.body.email.trim();
+        
         const user_data = await professorModel.findOne({ email: req.body.email });
         if (!user_data) {
-            return res.status(400).json({  status: false,
+            return res.status(401).json({  status: false,
                                             message: 'Email or password is incorrect.'});
         }
 
         const validPassword = await bcrypt.compare(req.body.password, user_data.password);
         if (!validPassword) {
-            return res.status(400).json({  status: false,
+            return res.status(401).json({  status: false,
                                             message: 'Email or password is incorrect.'});
         }
 

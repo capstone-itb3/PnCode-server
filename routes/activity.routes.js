@@ -21,7 +21,6 @@ activityRouter.get('/api/get-activities', middlewareAuth, async (req, res) => {
         activities.sort((a, b) => b?.createdAt - a?.createdAt);
 
         res.status(200).json({ status: 'ok', activities: activities, message: 'Activities retrieved successfully.' });
-
     } catch (e) {
         console.log(e);
         return res.status(500).json({   status: false, 
@@ -238,7 +237,9 @@ activityRouter.post('/api/update-dates', middlewareAuth, async (req, res) => {
             const [hours, minutes] = timeString.split(':').map(Number);
             return hours * 60 + minutes;
         };
-    
+        console.log(req.body.open_time, req.body.close_time);
+
+
         const openMinutes = timeToMinutes(req.body.open_time);
         const closeMinutes = timeToMinutes(req.body.close_time);
     
