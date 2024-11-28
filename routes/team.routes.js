@@ -66,26 +66,39 @@ teamRouter.post('/api/create-team', middlewareAuth, async (req, res) => {
         console.log(e);
         return res.status(500).json({   status: false, 
                                         message: 'Server error. Creating team failed.' });
-}
+    }
 });
 
 teamRouter.post('/api/get-team-details', middlewareAuth, async (req, res) => {
     try {
+        let access = null, assigned_rooms = [];
+
         const team = await teamModel.findOne({ team_id: req.body.team_id });
-        
         if (!team) {
             return res.status(404).json({ status: false, message: 'Team not found.' });
-
         }
 
         const class_data = await classModel.findOne({ class_id: team.class_id })
         .select('course_code section professor students')
         .lean();
 
-        let access = null;
-
         if (req.user.position === 'Professor' && req.user.uid === class_data.professor) {
             access = 'write';
+
+            assigned_rooms = await assignedRoomModel.find({ owner_id: req.body.team_id })
+                    .select('room_id owner_id activity_id')
+                    .lean();
+
+            const activities = await activityModel.find({ activity_id: { $in: assigned_rooms.map(room => room.activity_id) } })
+                               .select('activity_id activity_name');
+
+            assigned_rooms = assigned_rooms.map(room => {
+                const activity = activities.find(act => act.activity_id === room.activity_id);
+                return {
+                    ...room,
+                    activity_name: activity?.activity_name || '[Activity Deleted]',
+                };
+            });
 
         } else if (req.user.position === 'Student') {
             if (verifyStudent(team.members, req.user.uid)) {
@@ -106,6 +119,7 @@ teamRouter.post('/api/get-team-details', middlewareAuth, async (req, res) => {
                                         team: team, 
                                         course_code: class_data.course_code,
                                         section: class_data.section,
+                                        assigned_rooms: assigned_rooms,
                                         access: access });
     } catch(e) {
         console.log(e);
