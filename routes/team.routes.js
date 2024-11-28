@@ -1,6 +1,7 @@
 const studentModel = require('../models/students.model');
 const teamModel = require('../models/teams.model');
 const classModel = require('../models/classes.model');
+const activityModel = require('../models/activities.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const { setMemberInfo } = require('../utils/setInfo');
 const middlewareAuth = require('../middleware');
