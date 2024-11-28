@@ -837,15 +837,15 @@ adminRouter.post('/api/admin/remove-student', middlewareAdmin, async (req, res) 
     try {
         await classModel.updateOne({ class_id: req.body.class_id }, {
             $pull: {
-                students: req.body.uid
+                students: { $in: req.body.uids }
             }
         });
 
         await teamModel.updateOne({ 
             class_id: req.body.class_id, 
-            members: req.body.uid 
+            members: { $in: req.body.uids } 
         }, { 
-            $pull: { members: req.body.uid }
+            $pull: { members: { $in: req.body.uids } }
         });
 
         return res.status(200).json({  status: 'ok', message: 'Student removed successfully.' });
@@ -1060,7 +1060,7 @@ adminRouter.post('/api/admin/remove-member', middlewareAdmin, async (req, res) =
         }
 
         await teamModel.updateOne({ team_id: req.body.team_id }, {
-            $pull: { members: req.body.uid }
+            $pull: { members: { $in: req.body.uids } }
         });
 
         return res.status(200).json({   status: 'ok',
