@@ -1713,5 +1713,39 @@ adminRouter.post('/api/admin/delete-admin', middlewareAdmin, async (req, res) =>
     }
 });
 
+adminRouter.post('/api/admin/start-new-semester', middlewareAdmin, async (req, res) => {
+    try {
+        if (req.user.role === 'admin') {
+            return res.status(400).json({
+                status: false,
+                message: 'You are not authorized to this action.'
+            });
+        }
+
+        await classModel.updateMany({}, {
+            $set: {
+                students: [],
+                requests: []
+            }
+        });
+        
+        await activityModel.deleteMany({});
+        await teamModel.deleteMany({});
+        await assignedRoomModel.deleteMany({});
+        await fileModel.deleteMany({});
+
+        return res.status(200).json({
+            status: 'ok',
+            message: 'All classes cleared. A new semester can now be started.'
+        });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            status: false,
+            message: 'Server error. Clearing class students failed.'
+        });
+    }
+})
+
 
 module.exports = adminRouter;
