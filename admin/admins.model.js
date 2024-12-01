@@ -23,10 +23,12 @@ const adminSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    // role: {
-    //     type: String,
-    //     required: true
-    // },
+    role: {
+        type: String,
+        required: true,
+        enum: ['admin', 'superadmin'],
+        default: 'admin'
+    },
 }, { timestamps: true, collection: 'admins' });
 
 const adminModel = mongoose.model('admins', adminSchema);

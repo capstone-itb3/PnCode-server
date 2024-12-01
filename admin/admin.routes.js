@@ -40,7 +40,8 @@ adminRouter.post('/api/login/admin', async (req, res) => {
         const token = jwt.sign({
             admin_uid: user.admin_uid,
             first_name: user.first_name,
-            last_name: user.last_name            
+            last_name: user.last_name,
+            role: user.role      
         }, process.env.JWT_SECRET_ADMIN, { expiresIn: '1d' });
 
         res.cookie('token', token, {
@@ -54,6 +55,7 @@ adminRouter.post('/api/login/admin', async (req, res) => {
                                         message: 'Logged in successfully.' });
 
     } catch (err) {
+        console.error(err)
         return res.status(500).json({   status: false, 
                                         message: 'Server error. Logging in failed.' });
     }
@@ -66,6 +68,7 @@ adminRouter.post('/api/admin/verify-token', middlewareAdmin, async (req, res) =>
             admin_uid: req.user.admin_uid,
             first_name: req.user.first_name,
             last_name: req.user.last_name,
+            role: req.user.role
         }
 
         return res.status(200).json({   status: 'ok', auth: auth, message: 'Admin verified successfully.' });
@@ -1504,5 +1507,211 @@ adminRouter.post('/api/admin/delete-solo-room', middlewareAdmin, async (req, res
                                         message: 'Server error. Deleting solo room failed.' });
     }
 });
+
+adminRouter.post('/api/admin/admins', middlewareAdmin, async (req, res) => {
+    try {
+        const admins = await adminModel.find({})
+        .select('admin_uid first_name last_name email role createdAt updatedAt')
+        .lean();
+
+        admins.sort((a, b) => a.last_name.localeCompare(b.last_name));
+
+        return res.status(200).json({
+            status: 'ok',
+            admins: admins,
+            message: 'Admins retrieved successfully.'
+        });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            status: false,
+            message: 'Server error. Retrieving admins failed.'
+        });
+    }
+});
+
+adminRouter.post('/api/admin/create-admin', middlewareAdmin, async (req, res) => {
+    if (req.user.role === 'admin' && req.body.role === 'superadmin') {
+        return res.status(400).json({
+            status: false,
+            message: 'You are not authorized to create a superadmin.'
+        });
+    }
+
+    if (!regexEmail.test(req.body.email)) {
+        return res.status(400).json({
+            status: false,
+            message: 'Please enter a valid email address.'
+        });
+    }
+    if (req.body.password.length < 8) {
+        return res.status(400).json({
+            status: false,
+            message: 'Password must have more than 8 characters'
+        });
+    }
+    if (req.body.password !== req.body.conf_password) {
+        return res.status(400).json({
+            status: false,
+            message: 'Password and Re-typed Password doesn\'t match.'
+        });
+    }
+
+    const email = await adminModel.findOne({email: req.body.email}).select('email');
+    if (email) {
+        return res.status(400).json({
+            status: false,
+            message: 'The email address you entered is already registered.'
+        });
+    }
+
+    try {
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(req.body.password, salt);
+
+        let new_id = 0, already_exists = true;
+        while (already_exists) {
+            new_id = generateNanoId();
+            already_exists = await adminModel.findOne({ admin_uid: new_id });
+        }
+
+        await adminModel.create({
+            admin_uid: new_id,
+            email: req.body.email,
+            password: passwordHash,
+            first_name: req.body.first_name,
+            last_name: req.body.last_name,
+            role: req.body.role
+        });
+
+        return res.status(200).json({
+            status: 'ok',
+            admin_uid: new_id,
+            message: 'A new admin account has been created.'
+        });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            status: false,
+            message: 'Server error. Creating admin failed.'
+        });
+    }
+});
+
+adminRouter.post('/api/admin/update-admin', middlewareAdmin, async (req, res) => {
+    try {
+        if (req.user.role === 'admin' && req.body.role === 'superadmin') {
+            return res.status(400).json({
+                status: false,
+                message: 'You are not authorized to update to a superadmin.'
+            });
+        }
+
+        if (!regexEmail.test(req.body.email)) {
+            return res.status(400).json({
+                status: false,
+                message: 'Please enter a valid email address.'
+            });
+        }
+
+        const oldEmail = await adminModel.findOne({admin_uid: req.body.admin_uid}).select('email');
+        if (req.body.email !== oldEmail.email) {
+            const email = await adminModel.findOne({email: req.body.email}).select('email');
+            if (email) {
+                return res.status(400).json({
+                    status: false,
+                    message: 'The email address you entered is already registered.'
+                });
+            }
+        }
+
+        if (req.body.password !== '' || req.body.conf_password !== '') {
+            if (req.body.password !== req.body.conf_password) {
+                return res.status(400).json({
+                    status: false,
+                    message: 'Password and Re-typed Password doesn\'t match.'
+                });
+            }
+
+            if (req.body.password.length < 8) {
+                return res.status(400).json({
+                    status: false,
+                    message: 'Password must have more than 8 characters'
+                });
+            }
+
+            const salt = await bcrypt.genSalt(10);
+            const passwordHash = await bcrypt.hash(req.body.password, salt);
+
+            await adminModel.updateOne({ admin_uid: req.body.admin_uid }, {
+                $set: {
+                    email: req.body.email,
+                    first_name: req.body.first_name,
+                    last_name: req.body.last_name,
+                    password: passwordHash,
+                    role: req.body.role
+                }
+            });
+
+            return res.status(200).json({
+                status: 'ok',
+                message: 'Admin account has been updated.'
+            });
+        }
+
+        await adminModel.updateOne({ admin_uid: req.body.admin_uid }, {
+            $set: {
+                email: req.body.email,
+                first_name: req.body.first_name,
+                last_name: req.body.last_name,
+                role: req.body.role
+            }
+        });
+
+        return res.status(200).json({
+            status: 'ok',
+            message: 'Admin account has been updated.'
+        });
+
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            status: false,
+            message: 'Server error. Updating admin failed.'
+        });
+    }
+});
+
+adminRouter.post('/api/admin/delete-admin', middlewareAdmin, async (req, res) => {
+    try {
+        if (req.user.role === 'admin') {
+            return res.status(400).json({
+                status: false,
+                message: 'You are not authorized to delete an admin.'
+            });
+        }
+
+        if (req.body.admin_uids.includes(req.user.admin_uid)) {
+            return res.status(400).json({
+                status: false,
+                message: 'You cannot include your account for deletion.'
+            });
+        }
+
+        await adminModel.deleteMany({ admin_uid: { $in: req.body.admin_uids } });
+
+        return res.status(200).json({
+            status: 'ok',
+            message: 'Admin deleted successfully.'
+        });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            status: false,
+            message: 'Server error. Deleting admin failed.'
+        });
+    }
+});
+
 
 module.exports = adminRouter;
