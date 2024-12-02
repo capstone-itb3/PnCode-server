@@ -31,11 +31,10 @@ teamRouter.get('/api/get-teams', middlewareAuth, async (req, res) => {
 teamRouter.post('/api/create-team', middlewareAuth, async (req, res) => {
     try {
         if (req.body.name.length > 30) {
-            return res.status(400).json({ status: false, message: 'Team name must be less than 30 characters.' });
+            return res.status(400).json({ status: false, message: 'Team name must not be more than 30 characters long.' });
         
         } else if (req.body.name.length < 3) {
-            return res.status(400).json({ status: false, message: 'Team name must be at least 3 characters.' });
-        
+            return res.status(400).json({ status: false, message: 'Team name must be at least 3 characters long.' });
         }
         
         const members = [];
@@ -198,9 +197,11 @@ teamRouter.post('/api/invite-student', middlewareAuth, async (req, res) => {
         }
 
         const team = await teamModel.findOne({ team_id: req.body.team_id })
-                     .select('team_name').lean();
+                     .select('team_name members').lean();
         if (!team) {
             return res.status(404).json({ status: false, message: 'This team was not found or is no longer available.' });
+        } else if (team.members.length >= 10) {
+            return res.status(400).json({ status: false, message: 'This team is already full.' });
         }
 
         const notification = {
@@ -241,6 +242,11 @@ teamRouter.post('/api/accept-team-invite', middlewareAuth, async (req, res) => {
             return res.status(result.code).json({ status: result.status, message: result.message });
         }
 
+        await teamModel.updateOne({ team_id: req.body.team_id }, {
+            $push: { members: req.user.uid }
+        });
+
+
         const notification = {
             notif_id: uuid(),
             source: `${req.user.first_name} ${req.user.last_name}`,
@@ -252,9 +258,6 @@ teamRouter.post('/api/accept-team-invite', middlewareAuth, async (req, res) => {
 
         notifyStudents(result.team.members, notification);
 
-        await teamModel.updateOne({ team_id: req.body.team_id }, {
-            $push: { members: req.user.uid }
-        });
         
         return res.status(200).json({   status: 'ok', 
                                         message: 'Student is added to the team.' });
@@ -304,6 +307,8 @@ async function checkStudentAvailability(team_id, uid, checker) {
                  .lean();
     if (!team) {
         return { status: false, code: 404, message: 'This team was not found or is no longer available.' };
+    } else if (team.members.length >= 10) {
+        return { status: false, code: 400, message: 'This team is already full.' };
     }
 
     const class_data = await classModel.findOne({ class_id: team.class_id })
