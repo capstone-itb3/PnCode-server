@@ -151,7 +151,7 @@ accountRouter.post('/api/login', async (req, res) => {
     try {
         req.body.email = req.body.email.trim();
 
-        const user_data = await studentModel.findOne({ email: req.body.email });
+        const user_data = await studentModel.findOne({ email: req.body.email }).lean();
         if (!user_data || !user_data?.isVerified) {
             return res.status(401).json({  status: false,
                                             message: 'Email or password is incorrect.'});
@@ -172,8 +172,9 @@ accountRouter.post('/api/login', async (req, res) => {
             httpOnly: true
         });
 
-        return res.status(200).json({ status: 'ok', message: 'Logged in successfully' });
+        return res.status(200).json({ status: 'ok', token, message: 'Logged in successfully' });
     } catch (err) {
+        console.log(err)
         return res.status(500).json({   status: false, 
                                         message: err.message });
     }

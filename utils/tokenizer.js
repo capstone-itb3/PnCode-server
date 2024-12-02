@@ -6,8 +6,6 @@ function tokenizer(user, position) {
                     first_name: user.first_name,
                     last_name: user.last_name,
                     position: position,
-                    notifications: user.notifications,
-                    preferences: user.preferences
                 }
 
     return jwt.sign(token, process.env.JWT_SECRET, { expiresIn: '1d' });
