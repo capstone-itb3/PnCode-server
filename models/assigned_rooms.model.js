@@ -1,46 +1,6 @@
 const mongoose = require('mongoose');
-
-const feedbackSchema = new mongoose.Schema({
-    feedback_id: {
-        type: String,
-        required: true,
-        default: parseInt(Date.now())
-    },
-    feedback_body: {
-        type: String,
-        required: true,
-        default: ''
-    },
-    professor_uid: {
-        type: String,
-        required: true
-    },
-    reacts: {
-        type: [String],
-        required: false,
-        default: []
-    }
-}, { timestamps: true });
-
-const chatSchema = new mongoose.Schema({
-    chat_id: {
-        type: String,
-        required: true,
-        default: parseInt(Date.now())
-    },
-    chat_body: {
-        type: String,
-        required: true
-    },
-    sender_uid: {
-        type: String,
-        required: true
-    },
-    createdAt: {
-        type: Date,
-        required: true
-    }
-});
+const feedbackSchema = require('./schemas/feedbacks.schema');
+const chatSchema = require('./schemas/chats.schema');
 
 const assignedRoomSchema = new mongoose.Schema({
     room_id: {

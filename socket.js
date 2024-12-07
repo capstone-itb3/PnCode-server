@@ -1,12 +1,10 @@
 const { v4: uuid } = require('uuid');
 const random = require('lib0/random');
 
-const studentModel = require('./models/students.model');
-const professorModel = require('./models/professors.model');
 const assignedRoomModel = require('./models/assigned_rooms.model');
 const soloRoomModel = require('./models/solo_rooms.model');
 const fileModel = require('./models/files.model');
-const { tokenizeStudent, tokenizeProfessor } = require('./utils/tokenizer');
+const historyModel = require('./models/histories.model');
 const { setContributionInfo, setMessageInfo, setFeedbackInfo } = require('./utils/setInfo');
 
 const colors = [  
@@ -179,65 +177,72 @@ function socketConnect(io) {
             }
         })
 
-        socket.on('update_code', async ({file_id, code, store_history}) => {
+        socket.on('update_code', async ({ file_id, room_id, code, user_id, first_name, last_name, line, text, store_history }) => {
             try {
-                let file = await fileModel.findOneAndUpdate({ file_id },{ 
-                    $set: { content: code  } }, { new: true })
-                    .select('content room_id history contributions')
-                    .lean();
+                let file = await fileModel.findOneAndUpdate({ file_id }, { 
+                    $set: { content: code } 
+                }, { new: true })
+                .select('file_id content room_id contributions')
+                .lean();
 
-                if (file && file.content === code) {
-                    socket.emit('update_result', {
-                        status: 'ok',
-                        message: 'Code updated successfully',
-                    });
-                    
-                    if (store_history) {
-                        const no_history_record = hasNoHistoryRecord(file.history.length);
-                        const no_contributions = hasNoContributions(file.contributions.length);
-                        const same_record = hasSameRecord(file.history[0]?.content, code);
-                        const closer_timestamp = hasCloserTimestamp(file.history[0]?.createdAt);
-                        let can_store = false;
-
-                        if (no_history_record && !no_contributions) {
-                            if (!same_record && !closer_timestamp) {
-                                can_store = true;
-                            }
-
-                        } else if (!no_history_record) {
-                            if (!same_record && !closer_timestamp) {
-                                can_store = true;
-                            }                            
-                        }
-                        
-                        if (can_store) {                            
-                            const new_history = {
-                                content: code,
-                                contributions: file.contributions,
-                                createdAt: Date.now()
-                            }
-
-                            await fileModel.updateOne({ file_id }, {
-                                $push: { history: { $each: [new_history], $position: 0 } },
-                            });
-
-                            new_history.contributions = await setContributionInfo(new_history.contributions);
-
-                            io.to(file.room_id).emit('reupdate_history', {
-                                status: 'ok',
-                                file_id,
-                                new_history,
-                                message: 'History updated successfully'
-                            });
-                        }
-                    } 
-                } else {
-                    socket.emit('update_result', {
+                if (!(file && file.content === code)) {
+                    return socket.emit('update_result', {
                         status: false,
-                        message: 'Error updating code',
+                        message: 'Code not updated',
                     });
                 }
-                
+
+                socket.emit('update_result', {
+                    status: 'ok',
+                    message: 'Code updated successfully',
+                }); 
+
+                if (!noText(text)) {
+                    file = await addUserContribution(file, user_id, line, text);
+
+                    io.to(file.room_id).emit('add_edit_count_result', {
+                        file_id,
+                        user_id,
+                        first_name,
+                        last_name,
+                    });
+                }
+
+                if (store_history) {
+                    let file_history = await historyModel.find({ file_id })
+                        .select('history_id content contributions createdAt')
+                        .lean()
+                        .sort({ createdAt: 1 });
+
+                    if (canStoreHistory(file, file_history)) {
+                        const new_history = {
+                            history_id: uuid().toString(),
+                            content: code,
+                            contributions: file.contributions,
+                            createdAt: Date.now()
+                        }
+
+                        await historyModel.create({
+                            ...new_history,
+                            file_id
+                        });
+
+                        await fileModel.updateOne({ file_id }, {
+                            $set: {
+                                contributions: file.contributions.map(c => { return { ...c, lines: [] } })
+                            }
+                        })
+
+                        new_history.contributions = await setContributionInfo(new_history.contributions);
+
+                        io.to(file.room_id).emit('reupdate_history', {
+                            status: 'ok',
+                            file_id,
+                            new_history,
+                            message: 'History updated successfully'
+                        });
+                    }
+                }
             } catch (e) {
                 socket.emit('update_result', {
                     status: false,
@@ -247,7 +252,7 @@ function socketConnect(io) {
             }
         });
 
-        socket.on('update_code_admin', async ({file_id, code}) => {
+        socket.on('update_code_admin', async ({ file_id, code }) => {
             try {
                 let file = await fileModel.findOneAndUpdate({ file_id },{ 
                     $set: { content: code  } }, { new: true })
@@ -272,38 +277,40 @@ function socketConnect(io) {
         socket.on('get_history', async ({ file_id }) => {
             try {
                 const file = await fileModel.findOne({ file_id })
-                             .select('history contributions')
+                             .select('contributions')
                              .lean();
-
-                file.history.sort((a, b) => a.createdAt - b.createdAt);
-                file.contributions = await setContributionInfo(file.contributions);                
                 file.contributions.sort((a, b) => b.edit_count - a.edit_count);
+                file.contributions = await setContributionInfo(file.contributions);                
 
-                file.history = await Promise.all(file.history.map(setHistoryInfo));
+                let history = await historyModel.find({ file_id })
+                                .select('history_id content contributions createdAt')
+                                .lean()
+                                .sort({ createdAt: 1 });
+                
+                history = await Promise.all(history.map(setHistoryInfo));
                 async function setHistoryInfo(his) { 
                     his.contributions = await setContributionInfo(his.contributions);
                     his.contributions.sort((a, b) => b.edit_count - a.edit_count);
-                    
+
                     return his;
                 }
 
-                for (let i = 1; i < file.history.length; i++) { 
-                    file.history[i].contributions = file.history[i].contributions.map(cont => {
-                        const last_rec = file.history[i - 1].contributions.find(c => c.uid === cont.uid);
-                
-                        if (!last_rec) {
-                            return cont;
-                        }
+                for (let i = 1; i < history.length; i++) { 
+                    history[i].contributions = history[i].contributions.map(cont => {
+                        const last_rec = history[i - 1].contributions.find(c => c.uid === cont.uid);
+                                        
+                        if (!last_rec) return cont;
                 
                         const diff = cont.edit_count - last_rec.edit_count;
-                
+                        console.log(diff);
+
                         return { ...cont, diff };
                     });
                 }
 
                 socket.emit('get_history_result', {
                     status: 'ok',
-                    history: file.history,
+                    history: history,
                     contributions: file.contributions,
                     message: 'History retrieved successfully'
                 });
@@ -315,50 +322,6 @@ function socketConnect(io) {
                 console.log('get_history Error:' + e);
             }
         })
-
-        socket.on('add_edit_count', async ({ room_id, file_id, user_id, first_name, last_name }) => {
-            try {
-                const file = await fileModel.findOne({ file_id })
-                             .select('contributions')
-                             .lean();
-                let updated_file = file;
-
-                if (!file.contributions.find(contri => contri.uid === user_id)) {
-                    updated_file = await fileModel.findOneAndUpdate({ file_id }, {
-                        $push: {
-                            contributions: { 
-                                uid: user_id,
-                                edit_count: 1
-                            }
-                        }
-                    }, { new: true })
-                    .select('contributions')
-                    .lean();
-                    
-                } else {
-                    updated_file = await fileModel.findOneAndUpdate({ 
-                        file_id, contributions: { 
-                        $elemMatch: { uid: user_id } 
-                    }}, { 
-                        $inc: { "contributions.$[elem].edit_count": 1 } 
-                    }, {
-                        arrayFilters: [{ "elem.uid": user_id }], new: true 
-                    })
-                    .select('contributions')
-                    .lean();       
-                }
-
-                io.to(room_id).emit('add_edit_count_result', {
-                    file_id,
-                    user_id,
-                    first_name,
-                    last_name,
-                });
-                
-            } catch (e) {
-                console.error('add_edit_count Error' + e);
-            }
-        });
         
         socket.on('add_file', async ({ room_id, file_name, file_type }) => {
             try {
@@ -664,6 +627,9 @@ function socketConnect(io) {
     });
 }
 
+function noText(text) {
+    return typeof text !== 'string' || new RegExp('^\\s*$').test(text);
+}
 function hasNoHistoryRecord(history_length) {
     return history_length === 0;
 }
@@ -677,6 +643,58 @@ function hasCloserTimestamp(latest_created) {
     return Date.now() - new Date(latest_created) <= 300000;
 }
 
+function canStoreHistory(file, file_history) {
+    // If no history exists yet but has contributions
+    if (file_history.length === 0) {
+        return file.contributions.length > 0;
+    }
+
+    const latestHistory = file_history[0];
+    console.log(new Date(latestHistory.createdAt));
+    // Check all conditions
+    const isSameContent = latestHistory.content === file.content;
+    const isWithin5Minutes = Date.now() - new Date(latestHistory.createdAt) <= 300000;
+    const hasContributions = file.contributions.length > 0;
+
+    // Only store if:
+    // - Content is different AND
+    // - More than 5 minutes have passed AND
+    // - Has contributions
+    return !isSameContent && !isWithin5Minutes && hasContributions;
+}
+
+async function addUserContribution(file, user_id, line, text) {
+    let updated_file;
+
+    if (!file.contributions.find(contri => contri.uid === user_id)) {
+        updated_file = await fileModel.findOneAndUpdate({ file_id: file.file_id }, {
+            $push: {
+                contributions: {
+                    uid: user_id,
+                    edit_count: 1,
+                    $push: { lines: { line, text } }
+                }
+            }
+        }, { new: true })
+        .select('file_id content room_id contributions')
+        .lean();
+        
+    } else {
+        updated_file = await fileModel.findOneAndUpdate({ 
+            file_id: file.file_id, 
+            contributions: { $elemMatch: { uid: user_id } }
+        }, { 
+            $inc: { "contributions.$[elem].edit_count": 1 },
+            $push: { "contributions.$[elem].lines": { line, text } }
+        }, {
+            arrayFilters: [{ "elem.uid": user_id }], new: true 
+        })
+        .select('file_id content room_id contributions')
+        .lean();       
+    }
+
+    return updated_file;
+}
 
 
 module.exports = socketConnect;

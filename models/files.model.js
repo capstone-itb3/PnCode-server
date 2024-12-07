@@ -1,26 +1,5 @@
 const mongoose = require('mongoose');
-
-const contributionSchema = new mongoose.Schema({
-    uid: {
-        type: String,
-        required: true,
-    },
-    edit_count: {
-        type: Number,
-        required: true,
-    },
-}, { timestamps: true });
-
-const historySchema = new mongoose.Schema({
-    content: {
-        type: String,
-        required: true
-    },
-    contributions: {
-        type: [contributionSchema],
-        required: false
-    }
-}, { timestamps: true });
+const contributionSchema = require('./schemas/contributions.schema');
 
 const fileSchema = new mongoose.Schema({
     file_id: {
@@ -45,7 +24,7 @@ const fileSchema = new mongoose.Schema({
         required: false
     },
     history: {
-        type: [historySchema],
+        type: [String],
         required: false,
         default: []
     },
