@@ -210,10 +210,10 @@ function socketConnect(io) {
 
                 if (store_history) {
                     let file_history = await historyModel.find({ file_id })
-                        .select('history_id content contributions createdAt')
-                        .lean()
-                        .sort({ createdAt: 1 });
-
+                    .select('history_id content contributions createdAt')
+                    .lean()
+                    .sort({ createdAt: -1 });
+                
                     if (canStoreHistory(file, file_history)) {
                         const new_history = {
                             history_id: uuid().toString(),
@@ -302,7 +302,6 @@ function socketConnect(io) {
                         if (!last_rec) return cont;
                 
                         const diff = cont.edit_count - last_rec.edit_count;
-                        console.log(diff);
 
                         return { ...cont, diff };
                     });
@@ -501,7 +500,7 @@ function socketConnect(io) {
             }
         });
 
-        socket.on('submit_feedback', async ({ room_id, user_id, first_name, last_name, new_feedback }) => {
+        socket.on('submit_feedback', async ({ room_id, user_id, first_name, last_name, new_feedback, quoted_code }) => {
             try {
                 const createdAt = Date.now();
                 const feed = {
@@ -509,7 +508,8 @@ function socketConnect(io) {
                     feedback_body: new_feedback,
                     professor_uid: user_id,
                     createdAt: createdAt,
-                    reacts: []
+                    reacts: [],
+                    quoted_code
                 };
 
                 await assignedRoomModel.updateOne({ room_id }, {
@@ -624,6 +624,21 @@ function socketConnect(io) {
                 console.error('share_log Error:', e);
             }
         })
+
+        socket.on('quote_code', async ({ selection, file_name, fromLine, toLine }) => {
+            try {
+                socket.emit('add_code_quote', {
+                    quote: {
+                        text: selection,
+                        file_name,
+                        fromLine,
+                        toLine
+                    }
+                });
+            } catch (e) {
+                console.error('mention_code Error:', e);
+            }
+        });        
     });
 }
 
