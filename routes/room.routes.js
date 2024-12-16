@@ -91,6 +91,7 @@ roomRouter.post('/api/get-assigned-room-details/', middlewareAuth, async (req, r
     }   
 });
 
+//*POST function to get solo room details
 roomRouter.get('/api/get-solo-room-details', middlewareAuth, async (req, res) => {
     try {
         const room = await soloRoomModel.findOne({ room_id: req.query.room_id }).lean();
@@ -162,6 +163,8 @@ roomRouter.get('/api/get-solo-rooms', middlewareAuth, async (req, res) => {
     }   
 });
 
+
+//*POST function to update solo room
 roomRouter.post('/api/update-room-solo', middlewareAuth, async (req, res) => {
     try {
         const room = await soloRoomModel.findOne({ room_id: req.body.room_id });
@@ -186,6 +189,7 @@ roomRouter.post('/api/update-room-solo', middlewareAuth, async (req, res) => {
     }
 });
 
+//*POST function to delete solo room
 roomRouter.post('/api/delete-room-solo', middlewareAuth, async (req, res) => {
     try {
         await soloRoomModel.deleteOne({ room_id: req.body.room_id });
@@ -195,88 +199,6 @@ roomRouter.post('/api/delete-room-solo', middlewareAuth, async (req, res) => {
         console.log(e);
         return res.status(500).json({ status: false, message: 'Server error. Unable to delete room.' });
     }
-});
-
-roomRouter.get('/api/view-output', middlewareAuth, async (req, res) => {
-    try {
-        let room = await assignedRoomModel.findOne({ room_id: req.query.room_id })
-                   .select('owner_id activity_id');
-
-        //*is assigned room
-        if (room) {
-            const files = await fileModel.find({ room_id: req.query.room_id })
-                          .select('file_id name type content')
-                          .lean();
-            
-            if (files.length === 0) {
-                return res.status(404).json({ status: false, message: 'No files found.'});
-            }
-
-            const file = files.find(f => f.name === req.query.file_name);
-            
-            if (!file) {
-                return res.status(404).json({ status: false, message: 'File not found.'});
-            }
-
-            if (req.user.position === 'Student') {
-                const team = await teamModel.findOne({ team_id: room.owner_id })
-                             .select('members');
-                if (!team) {
-                    return res.status(404).json({ status: false, message: 'Team not found.'});
-                }
-
-                if (!verifyStudent(team.members, req.user.uid)) {
-                    return res.status(403).json({ status: false, message: 'Not a part of this room.'});
-                }                
-            } if (req.user.position === 'Professor') {
-                const activity = await activityModel.findOne({ activity_id: room.activity_id })
-                                 .select('class_id');
-                if (!activity) {
-                    return res.status(404).json({ status: false, message: 'Activity not found.'});
-                }
-
-                if (!await verifyProfessor(activity.class_id, req.user.uid)) {
-                    return res.status(403).json({ status: false, message: 'Not a part of this room.'});
-                }
-            }
-
-            return res.status(200).json({   status: 'ok', 
-                                            files: files, 
-                                            active: file,
-                                            message: 'Files retrieved successfully.' });
-        }
-
-
-        //*is solo room
-        room = await soloRoomModel.findOne({ room_id: req.query.room_id })
-                     .select('files owner_id');
-        if (room) {
-            files = room.files;
-            file = files.find(f => f.name === req.query.file_name);
-
-            if (!file) {
-                return res.status(404).json({ status: false, message: 'File not found.'});
-            }
-
-            if (room.owner_id === req.user.uid) {
-                return res.status(200).json({   status: 'ok',
-                                                files: files,
-                                                active: file,
-                                                message: 'Files retrieved successfully.' });
-            } else {
-                return res.status(403).json({ status: false, message: 'Not a part of this room.'});
-            }
-        } 
-
-        //*no room exists
-        if (!room) {
-            return res.status(404).json({ status: false, message: 'The room was not found or is no longer available.'});
-        }
-
-    } catch (e) {
-        console.log(e);
-        return res.status(500).json({ status: false, message: 'Server error. Unable to view output.' });
-    }   
 });
 
 module.exports = roomRouter;

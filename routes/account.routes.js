@@ -215,6 +215,7 @@ accountRouter.post('/api/login/professor', async (req, res) => {
     }
 });
 
+//*GET function to get user notifications
 accountRouter.get('/api/get-user-notifications', middlewareAuth, async (req, res) => {
     try {
         return res.status(200).json({   status: 'ok',
@@ -227,6 +228,7 @@ accountRouter.get('/api/get-user-notifications', middlewareAuth, async (req, res
     }  
 })
 
+//*POST function to update user notifications
 accountRouter.post('/api/update-notifications', middlewareAuth, async (req, res) => {
     try {
         if (req.user.position === 'Student') {
@@ -250,6 +252,7 @@ accountRouter.post('/api/update-notifications', middlewareAuth, async (req, res)
     }
 });
 
+//*POST function to send email for reset password
 accountRouter.post('/api/forgot-password', async (req, res) => {
     try {
         const user = await studentModel.findOne({ email: req.body.email })
@@ -289,6 +292,7 @@ accountRouter.post('/api/forgot-password', async (req, res) => {
     }
 });
 
+//*POST function to reset password
 accountRouter.post('/api/reset-password', async (req, res) => {
     try {
         if (req.body.password.length < 8) {
@@ -329,6 +333,7 @@ accountRouter.post('/api/reset-password', async (req, res) => {
     }
 });
 
+//*POST function to restrict students from professor and admin login pages
 accountRouter.post('/api/login-access', (req, res) => {
     try {
         const token = req.cookies?.token;
@@ -343,6 +348,7 @@ accountRouter.post('/api/login-access', (req, res) => {
     }
 });
 
+//*POST function to verify if current user token is valid
 accountRouter.post('/api/verify-token/', middlewareAuth, async (req, res) => {
     try {
         const auth = {

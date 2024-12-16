@@ -7,6 +7,7 @@ const activityModel = require('../models/activities.model');
 const soloRoomModel = require('../models/solo_rooms.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const fileModel = require('../models/files.model');
+const historyModel = require('../models/histories.model');
 const adminModel = require('./admins.model');
 
 const { setMemberInfo } = require('../utils/setInfo');
@@ -1375,23 +1376,22 @@ adminRouter.post('/api/admin/delete-professor', middlewareAdmin, async (req, res
 //*POST function to delete a course
 adminRouter.post('/api/admin/delete-course', middlewareAdmin, async (req, res) => {
     try {
-        await courseModel.deleteMany({ course_code: { $in: req.body.course_codes } });
-
         const classes = await classModel.find({ course_code: { $in: req.body.course_codes } })
                         .select('class_id').lean();
+        const activities = await activityModel.find({ class_id: { $in: classes.map(c => c.class_id) } })
+                            .select('activity_id').lean();
+        const assigned_rooms = await assignedRoomModel.find({ activity_id: { $in: activities.map(a => a.activity_id) } })
+                                .select('room_id').lean();
+        const files = await fileModel.find({room_id: { $in: assigned_rooms.map(r => r.room_id) }})
+                      .select('file_id').lean();
 
+        await courseModel.deleteMany({ course_code: { $in: req.body.course_codes } });
         await classModel.deleteMany({ course_code: { $in: req.body.course_codes } });
         await teamModel.deleteMany({ class_id: { $in: classes.map(c => c.class_id) } });
-        
-        const activities = await activityModel.find({ class_id: { $in: classes.map(c => c.class_id) } })
-                           .select('activity_id').lean();
-
-        const assigned_rooms = await assignedRoomModel.find({ activity_id: { $in: activities.map(a => a.activity_id) } })
-                               .select('room_id').lean();
-
         await activityModel.deleteMany({ class_id: { $in: classes.map(c => c.class_id) }});
-        await assignedRoomModel.deleteMany({room_id: { $in: assigned_rooms.map(r => r.room_id) }});
-        await fileModel.deleteMany({room_id: { $in: assigned_rooms.map(r => r.room_id) }})
+        await assignedRoomModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) }});
+        await fileModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) }})
+        await historyModel.deleteMany({ file_id: { $in: files.map(f => f.file_id) } });
 
         return res.status(200).json({   status: 'ok',
                                         message: 'The course has been deleted.'});
@@ -1406,19 +1406,20 @@ adminRouter.post('/api/admin/delete-course', middlewareAdmin, async (req, res) =
 //*POST function to delete a class
 adminRouter.post('/api/admin/delete-class', middlewareAdmin, async (req, res) => {
     try {
-        await classModel.deleteMany({ class_id: { $in: req.body.class_ids } });
-        await teamModel.deleteMany({ class_id: { $in: req.body.class_ids } });
-
         const activities = await activityModel.find({ class_id: { $in: req.body.class_ids } })
                            .select('activity_id').lean();
-
         const assigned_rooms = await assignedRoomModel.find({ activity_id: { $in: activities.map(a => a.activity_id) } })
                                .select('room_id').lean();
-
-        await activityModel.deleteMany({ class_id: { $in: req.body.class_ids } });
-        await assignedRoomModel.deleteMany({room_id: { $in: assigned_rooms.map(r => r.room_id) }})
-        await fileModel.deleteMany({room_id: { $in: assigned_rooms.map(r => r.room_id) }})
+        const files = await fileModel.find({room_id: { $in: assigned_rooms.map(r => r.room_id) }})
+                      .select('file_id').lean();
         
+        await classModel.deleteMany({ class_id: { $in: req.body.class_ids } });
+        await teamModel.deleteMany({ class_id: { $in: req.body.class_ids } });
+        await activityModel.deleteMany({ class_id: { $in: req.body.class_ids } });
+        await assignedRoomModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) }})
+        await fileModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) }})
+        await historyModel.deleteMany({ file_id: { $in: files.map(f => f.file_id) }})
+
         return res.status(200).json({   status: 'ok',
                                         message: 'The class has been deleted.'});
 
@@ -1462,14 +1463,16 @@ adminRouter.post('/api/admin/delete-team', middlewareAdmin, async (req, res) => 
 //*POST function to delete an activity
 adminRouter.post('/api/admin/delete-activity', middlewareAdmin, async (req, res) => {
     try {
-        await activityModel.deleteMany({ activity_id: { $in: req.body.activity_ids } });
         const assigned_rooms = await assignedRoomModel.find({ activity_id: { $in: req.body.activity_ids } })
-                               .select('room_id')
-                               .lean();
-
+                               .select('room_id').lean();
+        const files = await fileModel.find({ room_id: { $in: assigned_rooms.map(r => r.room_id) } })
+                               .select('file_id').lean();
+        
+        await activityModel.deleteMany({ activity_id: { $in: req.body.activity_ids } });
         await assignedRoomModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) } });
         await fileModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) } });
-    
+        await historyModel.deleteMany({ file_id: { $in: files.map(f => f.file_id) } });
+
         return res.status(200).json({   status: 'ok',
                                         message: 'The activity has been deleted.'});
     } catch (e) {
@@ -1482,8 +1485,12 @@ adminRouter.post('/api/admin/delete-activity', middlewareAdmin, async (req, res)
 //*POST function to delete an assigned room
 adminRouter.post('/api/admin/delete-assigned-room', middlewareAdmin, async (req, res) => {
     try {
+        const files = await fileModel.find({ room_id: { $in: req.body.room_ids } })
+                      .select('file_id').lean();
+        
         await assignedRoomModel.deleteMany({ room_id: { $in: req.body.room_ids } });
         await fileModel.deleteMany({ room_id: { $in: req.body.room_ids } });
+        await historyModel.deleteMany({ file_id: { $in: files.map(f => f.file_id) } });
 
         return res.status(200).json({   status: 'ok',
                                         message: 'The assigned room has been deleted.'});
@@ -1733,6 +1740,7 @@ adminRouter.post('/api/admin/start-new-semester', middlewareAdmin, async (req, r
         await teamModel.deleteMany({});
         await assignedRoomModel.deleteMany({});
         await fileModel.deleteMany({});
+        await historyModel.deleteMany({});
 
         return res.status(200).json({
             status: 'ok',

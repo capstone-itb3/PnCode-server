@@ -5,6 +5,7 @@ const teamModel = require('../models/teams.model');
 const activityModel = require('../models/activities.model');
 const assignedRoomModel = require('../models/assigned_rooms.model');
 const fileModel = require('../models/files.model');
+const historyModel = require('../models/histories.model');
 const middlewareAuth = require('../middleware');
 const { verifyStudent, verifyProfessor } = require('../utils/verifyAccess');
 const generateNanoId = require('../utils/generateNanoId');
@@ -14,6 +15,7 @@ const express = require('express');
 const activityRouter = express.Router();
 const { v4: uuid } = require('uuid');
 
+//*GET method to get activities within a class
 activityRouter.get('/api/get-activities', middlewareAuth, async (req, res) => {
     try { 
         const activities = await activityModel.find({ class_id: req.query.class_id });
@@ -28,6 +30,7 @@ activityRouter.get('/api/get-activities', middlewareAuth, async (req, res) => {
     }   
 });
 
+//*POST method to create an activity
 activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => {
     try {
         if (req.body.activity_name.length > 100) {
@@ -98,7 +101,7 @@ activityRouter.post('/api/create-activity', middlewareAuth, async (req, res) => 
     }   
 });
 
-
+//*GET method to direct student to their assgined team room for an activity
 activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
     try {
         const activity = await activityModel.findOne({ activity_id: req.query.activity_id })
@@ -155,6 +158,7 @@ activityRouter.get('/api/visit-activity', middlewareAuth, async (req, res) => {
     }   
 });
 
+//*GET method to get an activity details in activity page
 activityRouter.get('/api/get-activity-details', middlewareAuth, async (req, res) => {
     try {
         if (req.user.position !== 'Professor') {
@@ -201,6 +205,7 @@ activityRouter.get('/api/get-activity-details', middlewareAuth, async (req, res)
     }   
 });
 
+//*POST method to update an activity instruction
 activityRouter.post('/api/update-instructions', middlewareAuth, async (req, res) => {
     try {
         await activityModel.updateOne({ activity_id: req.body.activity_id }, {
@@ -225,6 +230,7 @@ activityRouter.post('/api/update-instructions', middlewareAuth, async (req, res)
     }
 });
 
+//*POST method to update an activity access timeframes
 activityRouter.post('/api/update-dates', middlewareAuth, async (req, res) => {
     try {
         if (req.body.open_time === '') {
@@ -270,16 +276,19 @@ activityRouter.post('/api/update-dates', middlewareAuth, async (req, res) => {
     }   
 });
 
+//*POST method to delete an activity
 activityRouter.post('/api/delete-activity', middlewareAuth, async (req, res) => {
     try {
         await activityModel.deleteOne({ activity_id: req.body.activity_id });
         const assigned_rooms = await assignedRoomModel.find({ activity_id: req.body.activity_id })
-                               .select('room_id')
-                               .lean();
+                               .select('room_id').lean();
+        const files = await fileModel.find({ room_id: { $in: assigned_rooms.map(r => r.room_id) } })
+                               .select('file_id').lean();
 
         await assignedRoomModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) } });
         await fileModel.deleteMany({ room_id: { $in: assigned_rooms.map(r => r.room_id) } });
-        
+        await historyModel.deleteMany({ file_id: { $in: files.map(f => f.file_id) } })
+
         return res.status(200).json({ status: 'ok', message: 'Activity deleted successfully.' });
     } catch (e) {
         console.log(e);

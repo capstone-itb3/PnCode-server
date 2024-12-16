@@ -7,6 +7,8 @@ const fileModel = require('./models/files.model');
 const historyModel = require('./models/histories.model');
 const { setContributionInfo, setMessageInfo, setFeedbackInfo } = require('./utils/setInfo');
 
+
+//*Cursor color selection
 const colors = [  
     { color: 'red',       light: '#ff000033' },
     { color: 'orange',    light: '#ffa50033' },
@@ -22,25 +24,29 @@ const colors = [
     { color: 'chocolate', light: '#d2691e33' },
 ];
 
+//*Initializer of socket.io connection
 function socketConnect(io) {
     let arrayRooms = [];
     let arrayEditors = [];
 
+    //*Function to find room by id
     function findRoom(room_id) {
         return arrayRooms.find(room => room.id === room_id);
     }
 
+    //*Function to find editor by id
     function findEditor(editor_id) {
         return arrayEditors.find(editor => editor.id === editor_id);
     }
 
+    //*Function to emit updated room users to users within the room
     function emitRoomUsers(room, action, first_name) {
         io.to(room.id).emit('room_users_updated', { 
             users: arrayRooms.find(r => r.id === room.id)?.users,
             message: first_name ? `${first_name} has ${action} the room.` : null,
         });
     }
-
+    //*Function to emit updated editor users to users within the room
     function emitEditorUsers(editor) {
         if (editor?.parent_room) {
             io.to(editor.parent_room).emit('editor_users_updated', {
@@ -49,13 +55,16 @@ function socketConnect(io) {
         }
     }
 
+    //*Starts the socket.io connection
     io.on('connection', (socket) => {
         console.log(`Socket.io connected: ${socket.id}`);
 
+        //*Sends the socket ID to the client on start
         socket.emit('get_socket_id', {
             socket_id: socket.id
         });
 
+        //*Handles joining rooms of users
         socket.on('join_room', async ({ room_id, user_id, first_name, last_name, position, cursorColor }) => {
             try {
                 let room = findRoom(room_id);
@@ -98,6 +107,7 @@ function socketConnect(io) {
             }
         });
         
+        //*Handles joining editors of users
         socket.on('join_editor', async ({ room_id, file_id, user_id }) => {
             try {
                 let editor = findEditor(file_id);
@@ -123,6 +133,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles users leaving an editor
         socket.on('leave_editor', async ({ file_id }) => {
             try {
                 const editor = findEditor(file_id);
@@ -139,6 +150,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles users leaving a room
         socket.on('disconnecting', () => {
             try {
                 const room = arrayRooms.find(r => r.users.find(user => user.socket_id === socket.id));
@@ -164,7 +176,8 @@ function socketConnect(io) {
                 console.error('disconnecting Error' + e);
             }
         });
-                
+             
+        //*Handles finding selected file's details
         socket.on('find_file', async ({ room_id, file_id }) => {
             try {
                 const file = await fileModel.findOne({ file_id, room_id }).lean();
@@ -177,14 +190,17 @@ function socketConnect(io) {
             }
         })
 
+        //*Handles updating file's content
         socket.on('update_code', async ({ file_id, room_id, code, user_id, first_name, last_name, line, text, store_history }) => {
             try {
+                //updates file's content
                 let file = await fileModel.findOneAndUpdate({ file_id }, { 
                     $set: { content: code } 
                 }, { new: true })
                 .select('file_id content room_id contributions')
                 .lean();
 
+                //emits an error result if unsuccessfull
                 if (!(file && file.content === code)) {
                     return socket.emit('update_result', {
                         status: false,
@@ -192,14 +208,18 @@ function socketConnect(io) {
                     });
                 }
 
+                //emits a success result
                 socket.emit('update_result', {
                     status: 'ok',
                     message: 'Code updated successfully',
                 }); 
 
+                //checks if no change has been to user's current line 
                 if (!noText(text)) {
+                    //if theres a change, adds the user's contribution to the file
                     file = await addUserContribution(file, user_id, line, text);
 
+                    //emits new edit count update for the professor in the room
                     io.to(file.room_id).emit('add_edit_count_result', {
                         file_id,
                         user_id,
@@ -208,13 +228,17 @@ function socketConnect(io) {
                     });
                 }
 
+                //stores the user's contribution in the file's history
                 if (store_history) {
+                    //retrieves file's history items in descending createdAt order
                     let file_history = await historyModel.find({ file_id })
                     .select('history_id content contributions createdAt')
                     .lean()
                     .sort({ createdAt: -1 });
                 
+                    //checks if storing history meets the conditions
                     if (canStoreHistory(file, file_history)) {
+                        //create a new history with current file's contribution
                         const new_history = {
                             history_id: uuid().toString(),
                             content: code,
@@ -222,19 +246,23 @@ function socketConnect(io) {
                             createdAt: Date.now()
                         }
 
+                        //adds the new history to the database
                         await historyModel.create({
                             ...new_history,
                             file_id
                         });
 
+                        //empties the file contributions' line edits
                         await fileModel.updateOne({ file_id }, {
                             $set: {
                                 contributions: file.contributions.map(c => { return { ...c, lines: [] } })
                             }
                         })
 
+                        //sets contributions info including student names
                         new_history.contributions = await setContributionInfo(new_history.contributions);
 
+                        //emits the new history to the room
                         io.to(file.room_id).emit('reupdate_history', {
                             status: 'ok',
                             file_id,
@@ -252,6 +280,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles updating file's content by admin
         socket.on('update_code_admin', async ({ file_id, code }) => {
             try {
                 let file = await fileModel.findOneAndUpdate({ file_id },{ 
@@ -274,6 +303,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles retrieving file's history
         socket.on('get_history', async ({ file_id }) => {
             try {
                 const file = await fileModel.findOne({ file_id })
@@ -322,6 +352,7 @@ function socketConnect(io) {
             }
         })
         
+        //*Handles adding new file to room
         socket.on('add_file', async ({ room_id, file_name, file_type }) => {
             try {
                 const regex = /[\/=\&]/;
@@ -374,6 +405,7 @@ function socketConnect(io) {
             }            
         });
 
+        //*Handles deleting file from room
         socket.on('delete_file', async ({ file_id, room_id }) => {
             try {
                 const editor = arrayEditors.find(edt => edt.id === file_id);
@@ -391,7 +423,8 @@ function socketConnect(io) {
                 }
 
                 await fileModel.deleteOne({ file_id });
-                        
+                await historyModel.deleteMany({ file_id });
+            
                 io.to(room_id).emit('file_deleted', {
                     status: 'ok',
                     file_id: file_id,
@@ -408,6 +441,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles saving notepad
         socket.on('save_notepad', async ({ room_id, content }) => {
             try {
                 await assignedRoomModel.updateOne({room_id: room_id}, {
@@ -418,6 +452,7 @@ function socketConnect(io) {
             }
         });
     
+        //*Handles loading notepad
         socket.on('load_notepad', async ({ room_id }) => {
             try {
                 const room = await assignedRoomModel.findOne({ room_id: room_id }).lean();
@@ -430,6 +465,8 @@ function socketConnect(io) {
                 console.error('load_notepad Error' + e);
             }
         });
+
+        //*Handles loading chat messages 
         socket.on('load_messages', async ({ room_id }) => {
             try {
                 const room = await assignedRoomModel.findOne({ room_id: room_id }).lean();
@@ -445,6 +482,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles sending chat messages
         socket.on('send_message', async ({ user_id, first_name, last_name, room_id, message }) => {
             try {
 
@@ -468,6 +506,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles deleting chat messages
         socket.on('delete_message', async ({ room_id, createdAt }) => {
             try {
                 await assignedRoomModel.updateOne({room_id: room_id}, {
@@ -482,6 +521,7 @@ function socketConnect(io) {
             }
         })
 
+        //*Handles loading feedback
         socket.on('load_feedback', async ({ room_id }) => {
             try {
                 const room = await assignedRoomModel.findOne({ room_id: room_id })
@@ -500,6 +540,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles submitting new feedback
         socket.on('submit_feedback', async ({ room_id, user_id, first_name, last_name, new_feedback, quoted_code }) => {
             try {
                 const createdAt = Date.now();
@@ -530,6 +571,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles adding/removing reactions to feedback
         socket.on('react_to_feedback', async ({ room_id, feedback_id, react, action}) => {
             try {
                 const room = await assignedRoomModel.findOne({ room_id: room_id, 'feedback.feedback_id': feedback_id })
@@ -562,6 +604,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles deleting feedback
         socket.on('delete_feedback', async ({ room_id, feedback_id }) => {
             try {
                 await assignedRoomModel.findOneAndUpdate({ room_id: room_id }, { 
@@ -576,6 +619,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles updating code in a solo room
         socket.on('update_code_solo', async ({ room_id, file_id, content }) => {
             try {
                 const result = await soloRoomModel.findOneAndUpdate(
@@ -612,6 +656,7 @@ function socketConnect(io) {
             }
         });
 
+        //*Handles sharing console logs within a room
         socket.on('share_log', async ({ room_id, log, name }) => {
             try {
                 log.logger = name;
@@ -625,6 +670,7 @@ function socketConnect(io) {
             }
         })
 
+        //*Handles quoting highlighted code within the editor 
         socket.on('quote_code', async ({ selection, file_name, fromLine, toLine }) => {
             try {
                 socket.emit('add_code_quote', {
@@ -644,18 +690,6 @@ function socketConnect(io) {
 
 function noText(text) {
     return typeof text !== 'string' || new RegExp('^\\s*$').test(text);
-}
-function hasNoHistoryRecord(history_length) {
-    return history_length === 0;
-}
-function hasNoContributions(contributions_length) {
-    return contributions_length === 0;
-}
-function hasSameRecord(prev_code, new_code) {
-   return prev_code === new_code;
-}
-function hasCloserTimestamp(latest_created) {
-    return Date.now() - new Date(latest_created) <= 300000;
 }
 
 function canStoreHistory(file, file_history) {
@@ -678,6 +712,7 @@ function canStoreHistory(file, file_history) {
     return !isSameContent && !isWithin5Minutes && hasContributions;
 }
 
+//*Handles adding new user contribution edit into the file
 async function addUserContribution(file, user_id, line, text) {
     let updated_file;
 

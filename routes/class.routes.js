@@ -12,7 +12,7 @@ const { v4: uuid } = require('uuid');
 const classRouter = express.Router();
 
 
-//*POST function to get student enrolled courses
+//*POST function to get student's enrolled courses
 classRouter.post('/api/get-enrolled-classes', middlewareAuth, async (req, res) => {
     try {
         let classes = await classModel.find({ students: req.user.uid })
@@ -29,7 +29,7 @@ classRouter.post('/api/get-enrolled-classes', middlewareAuth, async (req, res) =
     }
 });
 
-//*POST function to get professor assigned classes
+//*POST function to get professor's assigned classes
 classRouter.post('/api/get-assigned-classes', middlewareAuth, async (req, res) => {
     let classes = [];
     try {
@@ -48,6 +48,7 @@ classRouter.post('/api/get-assigned-classes', middlewareAuth, async (req, res) =
     }
 })
 
+//*POST function to request a class to join
 classRouter.post('/api/request-course', middlewareAuth, async (req, res) => {
     try {
         const courseCaps = String(req.body.course_code).toUpperCase();
@@ -88,6 +89,7 @@ classRouter.post('/api/request-course', middlewareAuth, async (req, res) => {
     }
 });
 
+//*POST function to get all students in a class
 classRouter.post('/api/get-included-students', middlewareAuth, async (req, res) => {
     try {
         const class_data = await classModel.findOne({ class_id: req.body.class_id })
@@ -125,6 +127,7 @@ classRouter.post('/api/get-included-students', middlewareAuth, async (req, res) 
     }
 });
 
+//*POST function to accept a student's request to join a class
 classRouter.post('/api/accept-request', middlewareAuth, async (req, res) => {
     try {
         const class_data = await classModel.findOne({ class_id: req.body.class_id })
@@ -167,6 +170,7 @@ classRouter.post('/api/accept-request', middlewareAuth, async (req, res) => {
     }
 });
 
+//*POST function to reject a student's request to join a class
 classRouter.post('/api/reject-request', middlewareAuth, async (req, res) => {
     try {
         const class_data = await classModel.findOneAndUpdate({ class_id: req.body.class_id }, {
@@ -203,6 +207,7 @@ classRouter.post('/api/reject-request', middlewareAuth, async (req, res) => {
     }
 });
 
+//*POST function to remove a student from a class
 classRouter.post('/api/remove-student', middlewareAuth, async (req, res) => {
     try {
         await teamModel.updateOne({ 
@@ -245,6 +250,7 @@ classRouter.post('/api/remove-student', middlewareAuth, async (req, res) => {
     }
 });
 
+//*POST function to get students not belonging to a class
 classRouter.post('/api/get-other-students', middlewareAuth, async (req, res) => {
     try {
         if (req.user.position === 'Student') {
@@ -269,6 +275,7 @@ classRouter.post('/api/get-other-students', middlewareAuth, async (req, res) => 
     }
 });
 
+//*POST function to add a student to a class
 classRouter.post('/api/add-student-to-class', middlewareAuth, async (req, res) => {
     try {
         if (req.user.position === 'Student') {

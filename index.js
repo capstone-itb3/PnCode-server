@@ -230,10 +230,4 @@ app.get('/favicon.ico', (req, res) => {
   return res.sendFile(path.join(__dirname, 'public', 'favicon.ico'));
 });
 
-app.get('/loaderio-70ec60b7dea504301b50ba59b116a4e8/', (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET');
-  return res.send('loaderio-70ec60b7dea504301b50ba59b116a4e8');
-});
-
 app.get('/api/server-date', (req, res) => res.status(200).json({ date: new Date() }));

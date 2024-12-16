@@ -2,6 +2,7 @@ const studentModel = require('../models/students.model');
 const professorModel = require('../models/professors.model');
 const courseModel = require('../models/courses.model');
 
+//*Function to set course information for student
 async function setCourseInfoStudent(class_data) {
     const data = await courseModel.findOne({ course_code: class_data.course_code })
                  .select('course_title');
@@ -19,6 +20,7 @@ async function setCourseInfoStudent(class_data) {
     }
 }
 
+//*Function to set course information for professor
 async function setCourseInfoProfessor(class_data) {
     const title = await courseModel.findOne({ course_code: class_data.course_code })
                  .select('course_title');
@@ -41,13 +43,14 @@ async function setCourseInfoProfessor(class_data) {
     }
 }
 
-
+//*Function to set member information for team
 async function setMemberInfo(members) {
     return await studentModel.find({ uid: { $in: members } })
            .select('uid first_name last_name email')
            .lean();
 }
 
+//*Function to set contribution information for history
 async function setContributionInfo(contributions) {
     const users = await studentModel.find({ uid: { $in: contributions.map(c => c.uid) } })
                   .select('uid first_name last_name')
@@ -64,6 +67,7 @@ async function setContributionInfo(contributions) {
     })
 }
 
+///*Function to set message information for chat
 async function setMessageInfo(room_chats) {
     const senders = await studentModel.find({ uid: { $in: room_chats.map(c => c.sender_uid) } })
                     .select('uid first_name last_name')
@@ -83,6 +87,7 @@ async function setMessageInfo(room_chats) {
     });
 }
 
+//*Function to set feedback information for feedback
 async function setFeedbackInfo(room_feedback) {
     const professors = await professorModel.find({ uid: { $in: room_feedback.map(f => f.professor_uid) } })
                        .select('uid first_name last_name')

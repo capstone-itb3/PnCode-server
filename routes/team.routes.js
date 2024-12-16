@@ -13,6 +13,7 @@ const express = require('express');
 const teamRouter = express.Router();
 const { v4: uuid } = require('uuid');
 
+//*GET method to get teams within a class
 teamRouter.get('/api/get-teams', middlewareAuth, async (req, res) => {
     try {
         const teams = await teamModel.find({ class_id: req.query.class_id });
@@ -28,6 +29,7 @@ teamRouter.get('/api/get-teams', middlewareAuth, async (req, res) => {
     }
 });
 
+//*POST method to create a team
 teamRouter.post('/api/create-team', middlewareAuth, async (req, res) => {
     try {
         if (req.body.name.length > 30) {
@@ -69,6 +71,7 @@ teamRouter.post('/api/create-team', middlewareAuth, async (req, res) => {
     }
 });
 
+//*POST method to get team details in team page
 teamRouter.post('/api/get-team-details', middlewareAuth, async (req, res) => {
     try {
         let access = null, assigned_rooms = [];
@@ -128,6 +131,7 @@ teamRouter.post('/api/get-team-details', middlewareAuth, async (req, res) => {
     }
 });
 
+//*POST method to update team name
 teamRouter.post('/api/update-team-name', middlewareAuth, async (req, res) => {
     try {
         const team = await teamModel.findOne({ team_id: req.body.team_id });
@@ -160,6 +164,7 @@ teamRouter.post('/api/update-team-name', middlewareAuth, async (req, res) => {
     }
 });
 
+//*POST method to check student availability in joining a team
 teamRouter.get('/api/check-student-availability', middlewareAuth, async (req, res) => {
     try {
         const result = await checkStudentAvailability(req.query.team_id, req.query.uid, 'This student is');
@@ -179,7 +184,7 @@ teamRouter.get('/api/check-student-availability', middlewareAuth, async (req, re
     }
 });
 
-
+//*POST method to send team invite to student
 teamRouter.post('/api/invite-student', middlewareAuth, async (req, res) => {
     try {  
         const student = await studentModel.findOne({ uid: req.body.uid })
@@ -225,6 +230,7 @@ teamRouter.post('/api/invite-student', middlewareAuth, async (req, res) => {
     }
 });
 
+//*POST method to accept team invite
 teamRouter.post('/api/accept-team-invite', middlewareAuth, async (req, res) => {
     try {
         const student = await studentModel.findOne({ uid: req.user.uid })
@@ -269,6 +275,7 @@ teamRouter.post('/api/accept-team-invite', middlewareAuth, async (req, res) => {
     }        
 });
 
+//*POST method to remove student from team
 teamRouter.post('/api/remove-member', middlewareAuth, async (req, res) => {
     try {
         await teamModel.updateOne({ team_id: req.body.team_id }, 
@@ -283,6 +290,7 @@ teamRouter.post('/api/remove-member', middlewareAuth, async (req, res) => {
     }
 });
 
+//*POST method to delete team
 teamRouter.post('/api/delete-team', middlewareAuth, async (req, res) => {
     try {
         await teamModel.deleteOne({ team_id: req.body.team_id });
@@ -301,6 +309,8 @@ teamRouter.post('/api/delete-team', middlewareAuth, async (req, res) => {
     }
 });
 
+
+//check if student is available to join a team
 async function checkStudentAvailability(team_id, uid, checker) {
     const team = await teamModel.findOne({ team_id })
                  .select('team_name class_id members')
