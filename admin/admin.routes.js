@@ -26,6 +26,8 @@ const adminRouter = express.Router();
 //*POST function when admin logs in
 adminRouter.post('/api/login/admin', async (req, res) => {
     try {
+        req.body.email = req.body.email.trim();
+
         const user = await adminModel.findOne({ email: req.body.email });
         if (!user) {
             return res.status(401).json({   status: false,
